@@ -212,3 +212,5 @@ frontend/.next
 voice-frontend/node_modules
 
 voice-frontend/.next
+
+logs

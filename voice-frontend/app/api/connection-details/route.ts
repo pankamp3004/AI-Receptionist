@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       ? `org_${orgId}_${Math.floor(Math.random() * 10_000)}`
       : `voice_room_${Math.floor(Math.random() * 10_000)}`;
 
-    const metadata = orgId ? JSON.stringify({ organization_id: orgId }) : undefined;
+    const metadata = orgId ? JSON.stringify({ organization_id: orgId, phone_number: phone }) : undefined;
 
     const participantToken = await createParticipantToken(
       { identity: participantIdentity, name: participantName, metadata },

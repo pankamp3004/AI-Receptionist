@@ -274,12 +274,15 @@ class MultiTenantHospitalService:
         if not self._pool:
             return
         import uuid
-        session_id = str(uuid.uuid4())
+        
+        # Cast to UUID to prevent asyncpg data errors with raw strings
+        session_uuid = str(uuid.uuid4())
+
         await self._pool.execute(
             """INSERT INTO call_session 
                (session_id, organization_id, phone_number, transcript, intent, started_at, ended_at) 
-               VALUES ($1, $2, $3, $4, $5, NOW() - INTERVAL '3 minutes', NOW())""",
-            session_id, organization_id, patient_phone, transcript, summary,
+               VALUES ($1::uuid, $2::uuid, $3, $4, $5, NOW() - INTERVAL '3 minutes', NOW())""",
+            session_uuid, organization_id, patient_phone, transcript, summary,
         )
 
     async def find_upcoming_appointments(self, organization_id: str, phone: str) -> list:

@@ -106,10 +106,17 @@ async def _save_call_log_async(
     session: AgentSession,
     organization_id: Optional[str],
     caller_phone: str,
+    mt_service,
 ):
     try:
-        mt_service = get_multitenant_service()
+        logger.info(f"Starting _save_call_log_async for org {organization_id}")
+        if not mt_service._pool:
+            logger.error("mt_service._pool is None! Cannot save call log.")
+            return
+
+        logger.info("Generating summary...")
         summary = await _generate_summary(session)
+        logger.info(f"Summary generated: {summary}")
 
         # Build full transcript
         transcript = ""
@@ -123,17 +130,23 @@ async def _save_call_log_async(
                     role = "Caller" if msg.role == "user" else "Agent"
                     parts.append(f"{role}: {content}")
             transcript = "\n".join(parts)
+            logger.info(f"Transcript built, length: {len(transcript)}")
+        else:
+            logger.warning("No transcript could be built.")
 
         if organization_id:
+            logger.info("Attempting to insert into call_session...")
             await mt_service.save_call_log(
                 organization_id=organization_id,
                 patient_phone=caller_phone,
                 transcript=transcript,
                 summary=summary or "",
             )
-            logger.info(f"Call log saved for org {organization_id}")
+            logger.info(f"Call log successfully saved for org {organization_id}")
+        else:
+            logger.warning("No organization_id, skipping call log save.")
     except Exception as e:
-        logger.error(f"Error saving call log: {e}")
+        logger.error(f"Error saving call log: {e}", exc_info=True)
 
 
 async def entrypoint(ctx: JobContext):
@@ -205,18 +218,25 @@ async def entrypoint(ctx: JobContext):
     caller_phone, _ = extract_caller_info(caller_identity)
     logger.info(f"Participant connected: {caller_identity}")
 
-    # 5. Try resolving org from participant metadata if still unknown (fallback)
-    if not organization_id and participant.metadata:
+    # 5. Extract additional info (like phone number) and try resolving org from participant metadata
+    if participant.metadata:
         try:
             meta = json.loads(participant.metadata)
-            organization_id = meta.get("organization_id")
-            if organization_id:
-                logger.info(f"Extracted org_id from participant metadata: {organization_id}")
-                # We must fetch the DB now because we missed the prefetch window
-                ai_config_task = mt_service.get_ai_config(organization_id)
-                org_details_task = mt_service.get_organization_details(organization_id)
-                ai_config, org_details_res = await asyncio.gather(ai_config_task, org_details_task)
-                org_details = org_details_res or {}
+            
+            # Extract phone_number from metadata if the caller identity doesn't have it
+            meta_phone = meta.get("phone_number")
+            if meta_phone and not ("_user_" in caller_identity):
+                caller_phone = meta_phone
+                
+            if not organization_id:
+                organization_id = meta.get("organization_id")
+                if organization_id:
+                    logger.info(f"Extracted org_id from participant metadata: {organization_id}")
+                    # We must fetch the DB now because we missed the prefetch window
+                    ai_config_task = mt_service.get_ai_config(organization_id)
+                    org_details_task = mt_service.get_organization_details(organization_id)
+                    ai_config, org_details_res = await asyncio.gather(ai_config_task, org_details_task)
+                    org_details = org_details_res or {}
         except Exception as e:
             logger.error(f"Failed to parse participant metadata: {e}")
 
@@ -293,7 +313,7 @@ async def entrypoint(ctx: JobContext):
 
         logger.info("Attempting to save call log before shutdown...")
         try:
-            await asyncio.shield(_save_call_log_async(session, organization_id, caller_phone))
+            await asyncio.shield(_save_call_log_async(session, organization_id, caller_phone, mt_service))
         except Exception as log_err:
             logger.error(f"Failed to save log during cleanup: {log_err}")
 
