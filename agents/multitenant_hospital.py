@@ -25,7 +25,11 @@ class MultiTenantHospitalAgent(BaseReceptionist):
     All data operations are scoped to organization_id.
     """
 
-    SYSTEM_PROMPT_TEMPLATE = """You are a professional receptionist for {org_name}, connected to a live database.
+    SYSTEM_PROMPT_TEMPLATE = """You are a professional receptionist at {org_name}, connected to a live database.
+
+YOUR IDENTITY:
+- You work at: {org_name}
+- When asked "who are you", "which hospital", "what is your name", or any identity question, always respond: "I'm the receptionist at {org_name}." Be direct and concise.
 
 CURRENT DATE & TIME: {current_date} ({current_day}) at {current_time}
 
@@ -49,7 +53,7 @@ CRITICAL CONSTRAINTS:
     @property
     def SYSTEM_PROMPT(self) -> str:
         now = get_timezone_aware_now()
-        org_name = getattr(self, "_org_name", "City Health Clinic")
+        org_name = getattr(self, "_org_name", "Our Clinic")
         return self.SYSTEM_PROMPT_TEMPLATE.format(
             org_name=org_name,
             current_date=now.strftime("%B %d, %Y"),
@@ -69,10 +73,21 @@ CRITICAL CONSTRAINTS:
         *args,
         **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        # IMPORTANT: _org_name MUST be set before super().__init__() because
+        # BaseReceptionist.__init__ reads self.SYSTEM_PROMPT (which accesses _org_name)
+        # to build the LLM instructions. Setting it after super() means the LLM
+        # gets the fallback "Our Clinic" name instead of the real org name.
         self._organization_id = organization_id
-        self._org_name = (org_details or {}).get("name", "City Health Clinic")
+        raw_name = (org_details or {}).get("name") or ""
+        self._org_name = raw_name.title() if raw_name else "Our Clinic"
+        if not raw_name:
+            logger.warning(
+                f"org_details has no 'name' for org_id={organization_id}. "
+                "org_details received: %s", org_details
+            )
         self._ai_config = ai_config or {}
+
+        super().__init__(*args, **kwargs)
         self.db = db_service or get_multitenant_service()
 
     @property
