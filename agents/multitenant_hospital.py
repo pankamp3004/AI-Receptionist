@@ -15,6 +15,7 @@ from agents.base import BaseReceptionist, get_timezone_aware_now
 from agents.registry import register_agent
 from memory.multitenant_service import get_multitenant_service
 from tools.session_logger import log_tool_call
+from tools.rag_client import rag_client
 
 logger = logging.getLogger("multitenant-hospital-agent")
 
@@ -34,11 +35,12 @@ YOUR IDENTITY:
 CURRENT DATE & TIME: {current_date} ({current_day}) at {current_time}
 
 CRITICAL CONSTRAINTS:
-1. NO HALLUCINATIONS: You have ZERO knowledge of doctors outside of tools. Always call tools for facts.
+1. NO HALLUCINATIONS: You have ZERO knowledge of doctors outside of tools. Always call tools for facts. Use search_knowledge_base to answer ANY questions about hospital rules, insurance, policies, or general information.
 2. INSTANT ACKNOWLEDGMENTS: Always acknowledge before calling any tool.
    - "Let me check that for you..." / "One moment please..." / "Looking that up..."
 3. PAST TIME PREVENTION: Never suggest time slots that have already passed today.
 4. WORKFLOWS:
+   - Hospital rules/insurance/FAQs -> call search_knowledge_base
    - Symptom -> call search_specialty_by_symptom
    - Doctor schedule -> call get_doctor_schedule
    - Booking -> verify doctor -> check_doctor_availability -> collect patient info -> summarize details and ask for explicit confirmation -> book_appointment
@@ -353,6 +355,14 @@ CRITICAL CONSTRAINTS:
         ctx: RunContext,
         query: Annotated[str, "General question from the user"],
     ) -> str:
+        # Before returning generic answers, try to search the knowledge base
+        if not self._organization_id:
+            return "I can help with appointments and doctor information. For other queries, please visit our website."
+            
+        kb_result = await rag_client.search_knowledge(query, self._organization_id)
+        if "couldn't find" not in kb_result and "unavailable" not in kb_result:
+            return kb_result
+            
         q = query.lower()
         if "hour" in q or "open" in q:
             return "Please check our website or call us during business hours for current timings."
@@ -361,3 +371,18 @@ CRITICAL CONSTRAINTS:
         if "insurance" in q:
             return "We accept most major insurance providers. Please contact our billing department for specifics."
         return "I can help with appointments and doctor information. For other queries, please visit our website."
+
+    @function_tool(description="Search the hospital's internal knowledge base for policies, insurance rules, treatments, and FAQs. Use this when the caller asks specific questions about what the hospital does, rules, or accepted insurances.")
+    @log_tool_call
+    async def search_knowledge_base(
+        self,
+        ctx: RunContext,
+        question: Annotated[str, "The specific question the caller is asking, formulated as a clear search query"],
+    ) -> str:
+        if not self._organization_id:
+            return "The knowledge base is currently unavailable."
+        
+        # Call the RAG client to search Pinecone vectors
+        result = await rag_client.search_knowledge(question, self._organization_id)
+        return result
+

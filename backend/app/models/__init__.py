@@ -7,6 +7,7 @@ from app.models.memory import PatientMemory, UserMemory, CallSession
 from app.models.ai_config import AIConfiguration
 from app.models.call_log import CallLog
 from app.models.call_cost import CallCost
+from app.models.knowledge import KnowledgeDocument
 
 __all__ = [
     "Organization", "Admin",
@@ -18,4 +19,5 @@ __all__ = [
     "AIConfiguration",
     "CallLog",
     "CallCost",
+    "KnowledgeDocument",
 ]

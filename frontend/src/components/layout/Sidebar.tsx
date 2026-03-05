@@ -15,7 +15,8 @@ const navItems = [
   { href: '/dashboard/schedules', label: 'Schedules', icon: Calendar },
   { href: '/dashboard/patients', label: 'Patients', icon: Users },
   { href: '/dashboard/appointments', label: 'Appointments', icon: CalendarCheck },
-  { href: '/dashboard/ai-config', label: 'AI Config', icon: Bot },
+  { href: '/dashboard/knowledge', label: 'Knowledge Base', icon: Bot },
+  { href: '/dashboard/ai-config', label: 'AI Config', icon: Settings },
   { href: '/dashboard/call-logs', label: 'Call Logs', icon: Phone },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]

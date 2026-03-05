@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.api.v1 import (
     auth, organizations, doctors, patients,
-    appointments, ai_config, call_logs, dashboard, specialty,
+    appointments, ai_config, call_logs, dashboard, specialty, knowledge
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -17,3 +17,4 @@ router.include_router(specialty.symptoms_router)
 router.include_router(ai_config.router)
 router.include_router(call_logs.router)
 router.include_router(dashboard.router)
+router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
