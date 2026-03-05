@@ -270,20 +270,21 @@ class MultiTenantHospitalService:
 
     async def save_call_log(
         self, organization_id: str, patient_phone: str, transcript: str, summary: str
-    ):
+    ) -> str:
+        """Insert a call session record and return the session_id (UUID string)."""
         if not self._pool:
-            return
+            return ""
         import uuid
-        
-        # Cast to UUID to prevent asyncpg data errors with raw strings
+
         session_uuid = str(uuid.uuid4())
 
         await self._pool.execute(
-            """INSERT INTO call_session 
-               (session_id, organization_id, phone_number, transcript, intent, started_at, ended_at) 
+            """INSERT INTO call_session
+               (session_id, organization_id, phone_number, transcript, intent, started_at, ended_at)
                VALUES ($1::uuid, $2::uuid, $3, $4, $5, NOW() - INTERVAL '3 minutes', NOW())""",
             session_uuid, organization_id, patient_phone, transcript, summary,
         )
+        return session_uuid
 
     async def find_upcoming_appointments(self, organization_id: str, phone: str) -> list:
         if not self._pool:
@@ -307,6 +308,50 @@ class MultiTenantHospitalService:
             "UPDATE appointment SET app_status = 'Cancelled' WHERE id = $1 AND organization_id = $2",
             appointment_id, organization_id,
         )
+
+    async def save_call_cost(
+        self,
+        session_id: str,
+        organization_id: str,
+        duration_seconds: int,
+        tts_characters: int,
+        llm_input_tokens: int,
+        llm_output_tokens: int,
+        stt_cost_usd: float,
+        tts_cost_usd: float,
+        llm_cost_usd: float,
+        livekit_cost_usd: float,
+        total_cost_usd: float,
+    ):
+        """Persist per-service cost breakdown for a call session."""
+        if not self._pool:
+            return
+        import uuid
+        cost_id = str(uuid.uuid4())
+        await self._pool.execute(
+            """INSERT INTO call_cost
+               (id, session_id, organization_id,
+                duration_seconds, tts_characters, llm_input_tokens, llm_output_tokens,
+                stt_cost_usd, tts_cost_usd, llm_cost_usd, livekit_cost_usd, total_cost_usd)
+               VALUES
+               ($1::uuid, $2::uuid, $3::uuid,
+                $4, $5, $6, $7,
+                $8, $9, $10, $11, $12)
+               ON CONFLICT (session_id) DO UPDATE SET
+                duration_seconds  = EXCLUDED.duration_seconds,
+                tts_characters    = EXCLUDED.tts_characters,
+                llm_input_tokens  = EXCLUDED.llm_input_tokens,
+                llm_output_tokens = EXCLUDED.llm_output_tokens,
+                stt_cost_usd      = EXCLUDED.stt_cost_usd,
+                tts_cost_usd      = EXCLUDED.tts_cost_usd,
+                llm_cost_usd      = EXCLUDED.llm_cost_usd,
+                livekit_cost_usd  = EXCLUDED.livekit_cost_usd,
+                total_cost_usd    = EXCLUDED.total_cost_usd""",
+            cost_id, session_id, organization_id,
+            duration_seconds, tts_characters, llm_input_tokens, llm_output_tokens,
+            stt_cost_usd, tts_cost_usd, llm_cost_usd, livekit_cost_usd, total_cost_usd,
+        )
+        logger.info(f"Call cost saved: session={session_id}, total=${total_cost_usd:.6f}")
 
     async def close(self):
         if self._pool:

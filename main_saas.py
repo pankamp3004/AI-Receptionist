@@ -49,6 +49,7 @@ from agents.multitenant_hospital import MultiTenantHospitalAgent
 from memory.multitenant_service import get_multitenant_service
 from tools.common import COMMON_TOOLS
 from tools.session_logger import UniversalLogger
+from tools.cost_tracker import CallCostTracker
 from memory.service import get_memory_service
 
 logging.basicConfig(
@@ -107,6 +108,7 @@ async def _save_call_log_async(
     organization_id: Optional[str],
     caller_phone: str,
     mt_service,
+    cost_tracker: Optional[CallCostTracker] = None,
 ):
     try:
         logger.info(f"Starting _save_call_log_async for org {organization_id}")
@@ -134,17 +136,32 @@ async def _save_call_log_async(
         else:
             logger.warning("No transcript could be built.")
 
+        session_id = ""
         if organization_id:
             logger.info("Attempting to insert into call_session...")
-            await mt_service.save_call_log(
+            session_id = await mt_service.save_call_log(
                 organization_id=organization_id,
                 patient_phone=caller_phone,
                 transcript=transcript,
                 summary=summary or "",
             )
-            logger.info(f"Call log successfully saved for org {organization_id}")
+            logger.info(f"Call log successfully saved for org {organization_id}, session_id={session_id}")
         else:
             logger.warning("No organization_id, skipping call log save.")
+            return
+
+        # Save cost breakdown if tracker was provided and session was saved
+        if cost_tracker and session_id:
+            try:
+                cost = cost_tracker.finalize(transcript=transcript)
+                await mt_service.save_call_cost(
+                    session_id=session_id,
+                    organization_id=organization_id,
+                    **cost.as_dict(),
+                )
+            except Exception as cost_err:
+                logger.error(f"Failed to save call cost: {cost_err}", exc_info=True)
+
     except Exception as e:
         logger.error(f"Error saving call log: {e}", exc_info=True)
 
@@ -264,7 +281,11 @@ async def entrypoint(ctx: JobContext):
     await memory_service.initialize()
     memory = await memory_service.fetch_user_by_email(caller_phone)
 
-    # 8. Create multi-tenant agent
+    # 8. Create cost tracker (one per call)
+    cost_tracker = CallCostTracker()
+    # Note: tracker.start() is called inside agent.on_enter() when the session begins
+
+    # 9. Create multi-tenant agent
     agent = MultiTenantHospitalAgent(
         organization_id=organization_id,
         org_details=org_details,
@@ -272,6 +293,7 @@ async def entrypoint(ctx: JobContext):
         memory_context=memory,
         caller_identity=caller_identity,
         db_service=mt_service,
+        cost_tracker=cost_tracker,
     )
 
     # 9. Create session
@@ -313,7 +335,12 @@ async def entrypoint(ctx: JobContext):
 
         logger.info("Attempting to save call log before shutdown...")
         try:
-            await asyncio.shield(_save_call_log_async(session, organization_id, caller_phone, mt_service))
+            await asyncio.shield(
+                _save_call_log_async(
+                    session, organization_id, caller_phone, mt_service,
+                    cost_tracker=cost_tracker,
+                )
+            )
         except Exception as log_err:
             logger.error(f"Failed to save log during cleanup: {log_err}")
 

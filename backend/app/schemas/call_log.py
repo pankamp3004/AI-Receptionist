@@ -23,6 +23,9 @@ class CallSessionOut(BaseModel):
     outcome: Optional[str]
     transcript: Optional[str]
     confidence_score: Optional[float]
+    # Inline cost fields — populated via join in list endpoint
+    duration_seconds: Optional[int] = None
+    total_cost_usd: Optional[float] = None
 
     model_config = {"from_attributes": True}
 
@@ -30,3 +33,4 @@ class CallSessionOut(BaseModel):
 # Keep legacy alias for any code that still imports CallLogCreate/Out
 CallLogCreate = CallSessionCreate
 CallLogOut = CallSessionOut
+

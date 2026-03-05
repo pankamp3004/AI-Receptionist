@@ -70,6 +70,7 @@ CRITICAL CONSTRAINTS:
         org_details: Optional[dict] = None,
         ai_config: Optional[dict] = None,
         db_service = None,
+        cost_tracker=None,
         *args,
         **kwargs,
     ):
@@ -86,6 +87,7 @@ CRITICAL CONSTRAINTS:
                 "org_details received: %s", org_details
             )
         self._ai_config = ai_config or {}
+        self.cost_tracker = cost_tracker  # may be None for non-cost-tracked sessions
 
         super().__init__(*args, **kwargs)
         self.db = db_service or get_multitenant_service()
@@ -97,6 +99,16 @@ CRITICAL CONSTRAINTS:
                 name=self.memory_context["name"], org_name=self._org_name
             )
         return self.GREETING_TEMPLATE.format(org_name=self._org_name)
+
+    async def on_enter(self):
+        """Override to start cost tracker and record greeting TTS chars."""
+        if self.cost_tracker:
+            self.cost_tracker.start()
+        await super().on_enter()
+        # Record greeting characters after it's spoken
+        if self.cost_tracker:
+            greeting = self._greeting
+            self.cost_tracker.record_tts(greeting)
 
     @function_tool()
     @log_tool_call

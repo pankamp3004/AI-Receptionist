@@ -88,7 +88,10 @@ export interface CallLog {
   transcript: string
   intent: string
   started_at: string
+  duration_seconds?: number | null
+  total_cost_usd?: number | null
 }
+
 
 export interface DashboardStats {
   total_doctors: number

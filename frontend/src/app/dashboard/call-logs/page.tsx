@@ -7,10 +7,24 @@ import { Card, CardContent } from '@/components/ui/Card'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import Modal from '@/components/ui/Modal'
 import Badge from '@/components/ui/Badge'
-import { Phone, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Phone, Eye, ChevronLeft, ChevronRight, Clock, DollarSign } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const PAGE_SIZE = 20
+
+/** Format seconds as mm:ss */
+function formatDuration(seconds?: number | null): string {
+  if (seconds == null) return '—'
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+/** Format cost as $0.0042 */
+function formatCost(cost?: number | null): string {
+  if (cost == null) return '—'
+  return `$${cost.toFixed(4)}`
+}
 
 export default function CallLogsPage() {
   const [page, setPage] = useState(0)
@@ -48,7 +62,19 @@ export default function CallLogsPage() {
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="text-left px-6 py-3 font-medium text-gray-500">Phone</th>
                 <th className="text-left px-6 py-3 font-medium text-gray-500">Summary</th>
-                <th className="text-left px-6 py-3 font-medium text-gray-500">Date & Time</th>
+                <th className="text-left px-6 py-3 font-medium text-gray-500">Date &amp; Time</th>
+                {/* Duration column */}
+                <th className="text-left px-6 py-3 font-medium text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" /> Duration
+                  </span>
+                </th>
+                {/* Cost column — total only, per plan */}
+                <th className="text-left px-6 py-3 font-medium text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <DollarSign className="h-3.5 w-3.5" /> Cost
+                  </span>
+                </th>
                 <th className="text-left px-6 py-3 font-medium text-gray-500">Status</th>
                 <th className="px-6 py-3" />
               </tr>
@@ -63,6 +89,20 @@ export default function CallLogsPage() {
                     <p className="truncate">{log.intent || 'No summary'}</p>
                   </td>
                   <td className="px-6 py-4 text-gray-500">{formatDateTime(log.started_at)}</td>
+                  {/* Duration */}
+                  <td className="px-6 py-4 text-gray-500 font-mono text-xs">
+                    {formatDuration(log.duration_seconds)}
+                  </td>
+                  {/* Cost — green if present */}
+                  <td className="px-6 py-4">
+                    {log.total_cost_usd != null ? (
+                      <span className="text-emerald-600 font-semibold text-xs">
+                        {formatCost(log.total_cost_usd)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-300 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4">
                     <Badge variant={log.transcript ? 'success' : 'default'}>
                       {log.transcript ? 'Transcribed' : 'No transcript'}
@@ -81,7 +121,7 @@ export default function CallLogsPage() {
               ))}
               {!logs?.length && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-16 text-center">
+                  <td colSpan={7} className="px-6 py-16 text-center">
                     <Phone className="h-10 w-10 text-gray-300 mx-auto mb-3" />
                     <p className="text-gray-400 font-medium">No call logs yet</p>
                     <p className="text-gray-400 text-xs mt-1">
@@ -124,11 +164,26 @@ export default function CallLogsPage() {
       >
         {selected && (
           <div className="space-y-4">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                Date & Time
-              </p>
-              <p className="text-sm text-gray-700">{formatDateTime(selected.started_at)}</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Date &amp; Time
+                </p>
+                <p className="text-sm text-gray-700">{formatDateTime(selected.started_at)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Duration &amp; Cost
+                </p>
+                <p className="text-sm text-gray-700">
+                  {formatDuration(selected.duration_seconds)}
+                  {selected.total_cost_usd != null && (
+                    <span className="ml-2 text-emerald-600 font-semibold">
+                      {formatCost(selected.total_cost_usd)}
+                    </span>
+                  )}
+                </p>
+              </div>
             </div>
             {selected.intent && (
               <div>
