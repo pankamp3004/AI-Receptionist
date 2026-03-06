@@ -77,6 +77,9 @@ class CallCostTracker:
     def __init__(self):
         self._start_time: Optional[float] = None
         self._tts_characters: int = 0
+        self._real_llm_input: int = 0
+        self._real_llm_output: int = 0
+        self._has_real_llm_metrics: bool = False
 
     def start(self) -> None:
         """Call once when the session connects."""
@@ -90,6 +93,17 @@ class CallCostTracker:
         """
         if text:
             self._tts_characters += len(text)
+
+    def record_llm_tokens(self, input_tokens: int, output_tokens: int) -> None:
+        """
+        Record REAL token counts from OpenAI's metrics_collected event.
+        Call this from the agent's metrics_collected listener.
+        These take priority over the word-based estimation in finalize().
+        """
+        self._real_llm_input += input_tokens
+        self._real_llm_output += output_tokens
+        self._has_real_llm_metrics = True
+        logger.debug(f"Real LLM tokens recorded: input={self._real_llm_input}, output={self._real_llm_output}")
 
     def finalize(self, transcript: str = "") -> CallCostResult:
         """
@@ -111,22 +125,28 @@ class CallCostTracker:
             duration_seconds = 0
         duration_minutes = max(duration_seconds / 60.0, 0)
 
-        # --- LLM token estimation from transcript -----------------------------
-        # GPT-4o-mini: ~1.3 tokens per word is a reliable approximation.
-        # We split caller and agent lines to separate input vs output tokens.
-        llm_input_tokens = 0
-        llm_output_tokens = 0
-        if transcript:
-            for line in transcript.splitlines():
-                stripped = line.strip()
-                if not stripped:
-                    continue
-                words = len(stripped.split())
-                tokens = int(words * 1.3)
-                if stripped.startswith("Caller:"):
-                    llm_input_tokens += tokens
-                else:
-                    llm_output_tokens += tokens
+        # --- LLM token counts (real or estimated) ----------------------------
+        if self._has_real_llm_metrics:
+            # Use REAL token counts from OpenAI's metrics_collected event
+            llm_input_tokens = self._real_llm_input
+            llm_output_tokens = self._real_llm_output
+            logger.debug("Using real LLM token counts for cost calculation")
+        else:
+            # Fallback: estimate from transcript (~1.3 tokens per word)
+            llm_input_tokens = 0
+            llm_output_tokens = 0
+            if transcript:
+                for line in transcript.splitlines():
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    words = len(stripped.split())
+                    tokens = int(words * 1.3)
+                    if stripped.startswith("Caller:"):
+                        llm_input_tokens += tokens
+                    else:
+                        llm_output_tokens += tokens
+            logger.warning("Real LLM metrics not available, using word-count estimation")
 
         # --- Cost calculation --------------------------------------------------
         rate_stt = _rate("RATE_STT_PER_MIN", 0.0043)

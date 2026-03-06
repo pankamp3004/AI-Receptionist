@@ -313,6 +313,20 @@ async def entrypoint(ctx: JobContext):
         def on_state_changed(event):
             logger.debug(f"Agent state: {event.new_state}")
 
+        @session.on("metrics_collected")
+        def on_metrics_collected(event):
+            """Capture real LLM token counts from OpenAI's API response."""
+            try:
+                for metric in event.metrics:
+                    # LLM metrics from OpenAI contain prompt and completion token counts
+                    if hasattr(metric, "prompt_tokens") and hasattr(metric, "completion_tokens"):
+                        cost_tracker.record_llm_tokens(
+                            input_tokens=int(metric.prompt_tokens or 0),
+                            output_tokens=int(metric.completion_tokens or 0),
+                        )
+            except Exception as e:
+                logger.warning(f"Failed to record LLM metrics: {e}")
+
         await session.start(
             agent=agent,
             room=ctx.room,
