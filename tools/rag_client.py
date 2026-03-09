@@ -60,7 +60,8 @@ class VoiceAgentRAGClient:
                 vector=query_embedding,
                 filter={"organization_id": {"$eq": str(organization_id)}},
                 top_k=top_k,
-                include_metadata=True
+                include_metadata=True, 
+                include_values=False 
             )
             
             # 3. Format results
