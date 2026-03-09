@@ -129,6 +129,26 @@ class MultiTenantHospitalService:
             return [(t, r["specialty"]) for t in tokens for r in rows if t.lower() in r["specialty"].lower()]
         return results
 
+    async def get_all_specialties(self, organization_id: str) -> list:
+        """Return all distinct specialty names available at this organization."""
+        if not self._pool:
+            return []
+        try:
+            rows = await self._pool.fetch(
+                """SELECT DISTINCT s.spec_name
+                   FROM specialty s
+                   JOIN doctor_specialty ds ON ds.spec_id = s.id
+                   JOIN doctor d ON d.id = ds.doc_id
+                   WHERE d.organization_id = $1 AND d.is_active = true
+                   ORDER BY s.spec_name""",
+                organization_id,
+            )
+            return [r["spec_name"] for r in rows]
+        except Exception as e:
+            logger.warning(f"get_all_specialties error: {e}")
+            return []
+
+
     async def get_doctors_by_specialty(self, organization_id: str, specialty: str) -> list:
         if not self._pool:
             return []

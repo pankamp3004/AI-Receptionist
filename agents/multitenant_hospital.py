@@ -41,15 +41,21 @@ CRITICAL CONSTRAINTS:
 3. PAST TIME PREVENTION: Never suggest time slots that have already passed today.
 4. WORKFLOWS:
    - Hospital rules/insurance/FAQs -> call search_knowledge_base
-   - Symptom -> call search_specialty_by_symptom
+   - Symptom routing -> Use your own medical knowledge to identify the right specialty, then call get_available_specialties to confirm the exact specialty name offered at this hospital.
    - Doctor schedule -> call get_doctor_schedule
    - Booking -> verify doctor -> check_doctor_availability -> collect patient info -> summarize details and ask for explicit confirmation -> book_appointment
    - Cancel -> ask for mobile -> find_patient_appointments -> cancel_appointment
-5. DATA COLLECTION RULE: When collecting patient info for booking, ALWAYS ask for details ONE BY ONE in a conversational manner. 
+5. SPECIALTY ROUTING RULE: You understand medical symptoms. When a caller describes symptoms:
+   - Use your medical knowledge to determine the most appropriate specialty (e.g. "chest pain" -> Cardiology, "my child has fever" -> Pediatrics, "eye pain" -> Ophthalmology)
+   - Call get_available_specialties to get the list of specialties this hospital actually offers
+   - STRICT MATCHING: Only suggest a specialty if it is genuinely appropriate for the caller's condition. Do NOT suggest a wrong specialty just because it sounds vaguely related.
+   - If the exact specialty is NOT available (e.g. caller needs Ophthalmology but only ENT and General Physician exist): say "We don't have an eye specialist at this hospital. However, a General Physician can evaluate you and refer you if needed. Shall I book with a General Physician?"
+   - Only fall back to General Physician, never suggest an unrelated specialty.
+6. DATA COLLECTION RULE: When collecting patient info for booking, ALWAYS ask for details ONE BY ONE in a conversational manner. 
    Do NOT ask for Name, Mobile, Date of Birth, Gender, and Reason all at once! 
    Ask for the Name first, then wait for their reply. Then ask for Mobile, wait for reply, etc.
-6. FINAL CONFIRMATION: Once you have collected ALL required booking info (Name, Mobile, DOB, Gender, Reason), you MUST summarize the appointment details and explicitly ask the user "Should I go ahead and book this appointment?" Wait for their "Yes" before calling the book_appointment tool.
-7. After booking, say "A confirmation message will be sent to your registered mobile number shortly."
+7. FINAL CONFIRMATION: Once you have collected ALL required booking info (Name, Mobile, DOB, Gender, Reason), you MUST summarize the appointment details and explicitly ask the user "Should I go ahead and book this appointment?" Wait for their "Yes" before calling the book_appointment tool.
+8. After booking, say "A confirmation message will be sent to your registered mobile number shortly."
 """
 
     @property
@@ -112,26 +118,28 @@ CRITICAL CONSTRAINTS:
             greeting = self._greeting
             self.cost_tracker.record_tts(greeting)
 
-    @function_tool()
+    @function_tool(description="Get all medical specialties available at this hospital. Call this after determining the appropriate specialty from the caller's symptoms using your medical knowledge, to confirm the exact specialty name this hospital uses.")
     @log_tool_call
-    async def search_specialty_by_symptom(
+    async def get_available_specialties(
         self,
         ctx: RunContext,
-        symptom: Annotated[str, "Symptom described by the user"],
     ) -> str:
         if not self._organization_id:
-            return "I'm unable to search for specialists right now. Please call our direct line."
-        cleaned = symptom.lower().replace(" and ", ",")
-        tokens = [t.strip() for t in cleaned.split(",") if len(t.strip()) >= 3]
-        if not tokens:
-            return "Could you describe the symptom more specifically?"
-        matches = await self.db.search_specialty_by_symptom(self._organization_id, tokens)
-        if not matches:
-            return "I couldn't match that symptom. A General Physician is usually a good start. Shall I find one?"
-        specialties = list(set([m[1] for m in matches]))
-        if len(specialties) == 1:
-            return f"For '{symptom}', you should see a {specialties[0]}. Shall I find one?"
-        return f"I found specialists for {', '.join(specialties)}. Which one would you like?"
+            return "I'm unable to look up specialties right now. Please call our direct line."
+        
+        try:
+            specialties = await self.db.get_all_specialties(self._organization_id)
+            if not specialties:
+                return "General Physician"
+            return "Available specialties at this hospital: " + ", ".join(specialties)
+        except Exception:
+            # Fallback: use admin-configured symptom mappings if DB call fails
+            ai_config = self._ai_config or {}
+            symptom_map = ai_config.get("symptom_specialty_map", {})
+            if symptom_map:
+                specialties = list(set(symptom_map.values()))
+                return "Available specialties: " + ", ".join(specialties)
+            return "General Physician"
 
     @function_tool()
     @log_tool_call
