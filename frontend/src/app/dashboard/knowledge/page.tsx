@@ -216,7 +216,7 @@ export default function KnowledgeBasePage() {
                         )}
                         {doc.status === 'error' && (
                           <div className="group relative">
-                            <Badge variant="destructive">Failed</Badge>
+                            <Badge variant="danger">Failed</Badge>
                             {doc.error_message && (
                               <div className="absolute hidden group-hover:block bottom-full mb-2 left-0 w-48 p-2 bg-gray-900 text-white text-xs rounded shadow-lg z-10">
                                 {doc.error_message}
