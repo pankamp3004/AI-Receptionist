@@ -107,6 +107,30 @@ class MultiTenantHospitalService:
             logger.warning(f"get_organization_details error: {e}")
             return None
 
+    async def check_tenant_suspension(self, organization_id: str) -> bool:
+        if not self._pool:
+            return False
+        try:
+            row = await self._pool.fetchrow(
+                "SELECT is_suspended FROM tenant_subscriptions WHERE organization_id = $1", organization_id
+            )
+            return bool(row and row["is_suspended"])
+        except Exception as e:
+            logger.warning(f"check_tenant_suspension error: {e}")
+            return False
+            
+    async def get_tenant_max_agents(self, organization_id: str) -> int:
+        if not self._pool:
+            return 1 # Default max
+        try:
+            row = await self._pool.fetchrow(
+                "SELECT max_agents FROM tenant_subscriptions WHERE organization_id = $1", organization_id
+            )
+            return int(row["max_agents"]) if row and row["max_agents"] else 1
+        except Exception as e:
+            logger.warning(f"get_tenant_max_agents error: {e}")
+            return 1
+
     async def search_specialty_by_symptom(self, organization_id: str, tokens: list) -> list:
         if not self._pool:
             return []

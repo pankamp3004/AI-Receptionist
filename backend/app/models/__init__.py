@@ -8,6 +8,8 @@ from app.models.ai_config import AIConfiguration
 from app.models.call_log import CallLog
 from app.models.call_cost import CallCost
 from app.models.knowledge import KnowledgeDocument
+from app.models.super_admin import SuperAdmin
+from app.models.subscription import TenantSubscription
 
 __all__ = [
     "Organization", "Admin",
@@ -20,4 +22,6 @@ __all__ = [
     "CallLog",
     "CallCost",
     "KnowledgeDocument",
+    "SuperAdmin",
+    "TenantSubscription",
 ]

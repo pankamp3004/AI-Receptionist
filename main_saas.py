@@ -58,6 +58,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("receptionist-multitenant")
 
+import collections
+# In-memory counter for active tenant sessions
+ACTIVE_TENANT_SESSIONS = collections.Counter()
+
 
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load(
@@ -276,6 +280,24 @@ async def entrypoint(ctx: JobContext):
         
     logger.info(f"Final resolved organization_id for AI agent: {organization_id}")
 
+    # 6. Suspend Check and Concurrency Bounds
+    if organization_id:
+        is_suspended = await mt_service.check_tenant_suspension(organization_id)
+        if is_suspended:
+            logger.warning(f"Tenant {organization_id} is SUSPENDED. Instantly disconnecting room.")
+            await ctx.room.disconnect()
+            return
+            
+        max_agents = await mt_service.get_tenant_max_agents(organization_id)
+        current_active = ACTIVE_TENANT_SESSIONS[organization_id]
+        if current_active >= max_agents:
+            logger.warning(f"Tenant {organization_id} exceeded max agents capacity ({current_active}/{max_agents}). Rejecting.")
+            await ctx.room.disconnect()
+            return
+            
+        ACTIVE_TENANT_SESSIONS[organization_id] += 1
+        logger.info(f"Tenant {organization_id} concurrency: {ACTIVE_TENANT_SESSIONS[organization_id]}/{max_agents}")
+
     # 7. Legacy memory service for returning caller history
     memory_service = get_memory_service()
     await memory_service.initialize()
@@ -296,11 +318,29 @@ async def entrypoint(ctx: JobContext):
         cost_tracker=cost_tracker,
     )
 
-    # 9. Create session
+    # 10. Configure dynamic LLM based on Tenant Settings
+    llm_provider = (ai_config.get("llm_provider") or "openai").lower()
+    llm_model = ai_config.get("llm_model") or "gpt-4o-mini"
+    
+    logger.info(f"Initializing LLM plugin: {llm_provider} using model: {llm_model}")
+    llm_plugin = openai.LLM()
+    try:
+        if llm_provider == "groq":
+            from livekit.plugins import groq
+            llm_plugin = groq.LLM(model=llm_model)
+        elif llm_provider == "anthropic":
+            from livekit.plugins import anthropic
+            llm_plugin = anthropic.LLM(model=llm_model)
+        else:
+            llm_plugin = openai.LLM(model=llm_model)
+    except Exception as e:
+        logger.error(f"Failed to load {llm_provider} plugin. Falling back to default OpenAI. Error: {e}")
+
+    # 11. Create session
     session = AgentSession(
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(),
-        llm=openai.LLM(),
+        llm=llm_plugin,
         tts=cartesia.TTS(model="sonic-3"),
         allow_interruptions=True,
     )
@@ -344,6 +384,10 @@ async def entrypoint(ctx: JobContext):
         logger.error(f"Session error: {e}", exc_info=True)
 
     finally:
+        if organization_id:
+            ACTIVE_TENANT_SESSIONS[organization_id] = max(0, ACTIVE_TENANT_SESSIONS[organization_id] - 1)
+            logger.info(f"Agent session ended. Tenant {organization_id} concurrency: {ACTIVE_TENANT_SESSIONS[organization_id]}")
+
         session_logger.log("SYSTEM", "Session cleanup")
         session_logger.close()
 
@@ -366,12 +410,6 @@ async def entrypoint(ctx: JobContext):
                 await ctx.room.disconnect()
         except Exception as e:
             logger.error(f"Disconnect error: {e}")
-
-        # Close per-session DB pool
-        try:
-            await mt_service.close()
-        except Exception as e:
-            logger.error(f"Error closing DB pool: {e}")
 
 
 if __name__ == "__main__":
