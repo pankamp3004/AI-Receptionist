@@ -3,7 +3,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getSuperAuth, clearSuperAuth } from '@/lib/super-auth'
 import Link from 'next/link'
-import { ShieldAlert, LayoutDashboard, Building2, LogOut } from 'lucide-react'
+import { ShieldAlert, LayoutDashboard, Building2, LogOut, Users } from 'lucide-react'
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -30,6 +30,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
   const navItems = [
     { name: 'Dashboard', href: '/super-admin/dashboard', icon: LayoutDashboard },
     { name: 'Tenants', href: '/super-admin/tenants', icon: Building2 },
+    { name: 'Team', href: '/super-admin/team', icon: Users },
   ]
 
   return (
