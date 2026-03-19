@@ -107,29 +107,28 @@ class MultiTenantHospitalService:
             logger.warning(f"get_organization_details error: {e}")
             return None
 
-    async def check_tenant_suspension(self, organization_id: str) -> bool:
+    async def get_tenant_subscription(self, organization_id: str) -> dict:
+        """Returns suspension status and max_agents in a SINGLE query to minimize latency."""
         if not self._pool:
-            return False
+            return {"is_suspended": False, "max_agents": 1}
         try:
             row = await self._pool.fetchrow(
-                "SELECT is_suspended FROM tenant_subscriptions WHERE organization_id = $1", organization_id
+                "SELECT is_suspended, max_agents FROM tenant_subscriptions WHERE organization_id = $1", organization_id
             )
-            return bool(row and row["is_suspended"])
+            if not row:
+                return {"is_suspended": False, "max_agents": 1}
+            return {"is_suspended": bool(row["is_suspended"]), "max_agents": int(row["max_agents"] or 1)}
         except Exception as e:
-            logger.warning(f"check_tenant_suspension error: {e}")
-            return False
+            logger.warning(f"get_tenant_subscription error: {e}")
+            return {"is_suspended": False, "max_agents": 1}
+
+    async def check_tenant_suspension(self, organization_id: str) -> bool:
+        sub = await self.get_tenant_subscription(organization_id)
+        return sub["is_suspended"]
             
     async def get_tenant_max_agents(self, organization_id: str) -> int:
-        if not self._pool:
-            return 1 # Default max
-        try:
-            row = await self._pool.fetchrow(
-                "SELECT max_agents FROM tenant_subscriptions WHERE organization_id = $1", organization_id
-            )
-            return int(row["max_agents"]) if row and row["max_agents"] else 1
-        except Exception as e:
-            logger.warning(f"get_tenant_max_agents error: {e}")
-            return 1
+        sub = await self.get_tenant_subscription(organization_id)
+        return sub["max_agents"]
 
     async def search_specialty_by_symptom(self, organization_id: str, tokens: list) -> list:
         if not self._pool:

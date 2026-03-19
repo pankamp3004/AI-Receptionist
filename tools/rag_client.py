@@ -5,6 +5,8 @@ during a live call to inject knowledge base context into the LLM prompt.
 """
 
 import os
+import time
+import asyncio
 import logging
 from langchain_openai import OpenAIEmbeddings
 from pinecone import Pinecone
@@ -27,6 +29,10 @@ class VoiceAgentRAGClient:
         if not self.enabled:
             logger.warning("RAG Client disabled: OPENAI_API_KEY or PINECONE_API_KEY missing.")
             return
+
+        # Simple TTL cache: {cache_key: (result_str, timestamp)}
+        self._cache: dict = {}
+        self._cache_ttl_seconds = 300  # 5 minute TTL
             
         try:
             self.pc = Pinecone(api_key=self.pinecone_api_key)
@@ -46,22 +52,34 @@ class VoiceAgentRAGClient:
         """
         if not self.enabled:
             return "Knowledge base search is currently unavailable."
+
+        # Check TTL cache first to avoid repeated embeddings + Pinecone round-trips
+        cache_key = f"{organization_id}::{question.lower().strip()}"
+        if cache_key in self._cache:
+            cached_result, cached_at = self._cache[cache_key]
+            if time.time() - cached_at < self._cache_ttl_seconds:
+                logger.info(f"RAG Cache HIT for: '{question}'")
+                return cached_result
             
         try:
-            # 1. Embed the question
             logger.info(f"RAG Search: '{question}' for org {organization_id}")
-            # Note: We use embed_query which is blocking, but fast enough for small queries
-            # In a highly concurrent async environment we'd use aembed_query
+
+            # 1. Embed the question (async)
             query_embedding = await self.embeddings.aembed_query(question)
             
-            # 2. Query Pinecone using namespace physically separating tenant data
-            result = self.index.query(
-                namespace=str(organization_id),
-                vector=query_embedding,
-                filter={"organization_id": {"$eq": str(organization_id)}},
-                top_k=top_k,
-                include_metadata=True, 
-                include_values=False 
+            # 2. Query Pinecone in a thread executor (Pinecone client is SYNCHRONOUS, 
+            # calling it directly blocks the async event loop — this is the primary latency source)
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(
+                None,
+                lambda: self.index.query(
+                    namespace=str(organization_id),
+                    vector=query_embedding,
+                    filter={"organization_id": {"$eq": str(organization_id)}},
+                    top_k=top_k,
+                    include_metadata=True,
+                    include_values=False,
+                )
             )
             
             # 3. Format results
@@ -82,6 +100,8 @@ class VoiceAgentRAGClient:
             formatted_context = "Here is the relevant information from the hospital's knowledge base:\n\n"
             formatted_context += "\n---\n".join(context_chunks)
             
+            # Store in cache
+            self._cache[cache_key] = (formatted_context, time.time())
             return formatted_context
 
         except Exception as e:

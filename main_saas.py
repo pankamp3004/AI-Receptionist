@@ -280,15 +280,15 @@ async def entrypoint(ctx: JobContext):
         
     logger.info(f"Final resolved organization_id for AI agent: {organization_id}")
 
-    # 6. Suspend Check and Concurrency Bounds
+    # 6. Suspend Check and Concurrency Bounds (single DB query for both)
     if organization_id:
-        is_suspended = await mt_service.check_tenant_suspension(organization_id)
-        if is_suspended:
+        subscription = await mt_service.get_tenant_subscription(organization_id)
+        if subscription["is_suspended"]:
             logger.warning(f"Tenant {organization_id} is SUSPENDED. Instantly disconnecting room.")
             await ctx.room.disconnect()
             return
             
-        max_agents = await mt_service.get_tenant_max_agents(organization_id)
+        max_agents = subscription["max_agents"]
         current_active = ACTIVE_TENANT_SESSIONS[organization_id]
         if current_active >= max_agents:
             logger.warning(f"Tenant {organization_id} exceeded max agents capacity ({current_active}/{max_agents}). Rejecting.")
@@ -320,8 +320,13 @@ async def entrypoint(ctx: JobContext):
 
     # 10. Configure dynamic LLM based on Tenant Settings
     llm_provider = (ai_config.get("llm_provider") or "openai").lower()
-    llm_model = ai_config.get("llm_model") or "gpt-4o-mini"
+    llm_model = ai_config.get("llm_model") or "gpt-4o"
     
+    # Force full gpt-4o. The mini model drops tool calls when using the user's preferred 
+    # 'INSTANT ACKNOWLEDGMENTS' prompt constraint.
+    if llm_provider == "openai" and "mini" in llm_model:
+        llm_model = "gpt-4o"
+        logger.info("Upgraded openai model to gpt-4o to secure multi-turn tool calling behavior.")
     logger.info(f"Initializing LLM plugin: {llm_provider} using model: {llm_model}")
     llm_plugin = openai.LLM()
     try:

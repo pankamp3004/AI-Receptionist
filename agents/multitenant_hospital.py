@@ -36,8 +36,7 @@ CURRENT DATE & TIME: {current_date} ({current_day}) at {current_time}
 
 CRITICAL CONSTRAINTS:
 1. NO HALLUCINATIONS: You have ZERO knowledge of doctors outside of tools. Always call tools for facts. Use search_knowledge_base to answer ANY questions about hospital rules, insurance, policies, or general information.
-2. INSTANT ACKNOWLEDGMENTS: Always acknowledge before calling any tool.
-   - "Let me check that for you..." / "One moment please..." / "Looking that up..."
+2. INSTANT ACKNOWLEDGMENTS: Before calling ANY tool, you MUST first say a short bridging phrase such as "One moment please..." or "Let me check that for you...". Never call a tool silently.
 3. PAST TIME PREVENTION: Never suggest time slots that have already passed today.
 4. WORKFLOWS:
    - Hospital rules/insurance/FAQs -> call search_knowledge_base
@@ -356,31 +355,7 @@ CRITICAL CONSTRAINTS:
         await self.db.cancel_appointment(self._organization_id, str(target["id"]))
         return "Your appointment has been successfully cancelled."
 
-    @function_tool()
-    @log_tool_call
-    async def handle_general_query(
-        self,
-        ctx: RunContext,
-        query: Annotated[str, "General question from the user"],
-    ) -> str:
-        # Before returning generic answers, try to search the knowledge base
-        if not self._organization_id:
-            return "I can help with appointments and doctor information. For other queries, please visit our website."
-            
-        kb_result = await rag_client.search_knowledge(query, self._organization_id)
-        if "couldn't find" not in kb_result and "unavailable" not in kb_result:
-            return kb_result
-            
-        q = query.lower()
-        if "hour" in q or "open" in q:
-            return "Please check our website or call us during business hours for current timings."
-        if "location" in q or "address" in q:
-            return "Please check our website for our location and directions."
-        if "insurance" in q:
-            return "We accept most major insurance providers. Please contact our billing department for specifics."
-        return "I can help with appointments and doctor information. For other queries, please visit our website."
-
-    @function_tool(description="Search the hospital's internal knowledge base for policies, insurance rules, treatments, and FAQs. Use this when the caller asks specific questions about what the hospital does, rules, or accepted insurances.")
+    @function_tool(description="Search the hospital's internal knowledge base for policies, history, research, treatments, and FAQs. Use this ANY TIME the caller asks specific questions about what the hospital does, its history, rules, or accepted insurances.")
     @log_tool_call
     async def search_knowledge_base(
         self,
