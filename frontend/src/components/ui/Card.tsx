@@ -26,3 +26,11 @@ export function CardContent({ className, children, ...props }: CardProps) {
     </div>
   )
 }
+
+export function CardTitle({ className, children, ...props }: CardProps) {
+  return (
+    <h3 className={cn('font-semibold leading-none tracking-tight', className)} {...props}>
+      {children}
+    </h3>
+  )
+}
