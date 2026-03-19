@@ -3,7 +3,26 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getSuperAuth, clearSuperAuth } from '@/lib/super-auth'
 import Link from 'next/link'
-import { ShieldAlert, LayoutDashboard, Building2, LogOut, Users } from 'lucide-react'
+import { ShieldAlert, LayoutDashboard, Building2, LogOut, Users, Sun, Moon } from 'lucide-react'
+import { ThemeProvider } from '@/components/ThemeProvider'
+import { useTheme } from 'next-themes'
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  if (!mounted) return null
+
+  return (
+    <button
+      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      className="flex w-full items-center gap-3 px-4 py-3 rounded-lg text-slate-400 hover:bg-white/5 hover:text-white transition-colors font-medium mb-2"
+    >
+      {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+      <span className="font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+    </button>
+  )
+}
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -34,9 +53,10 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
   ]
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row font-sans text-slate-800 selection:bg-indigo-100 selection:text-indigo-900">
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <div className="min-h-screen flex flex-col md:flex-row font-sans text-slate-800 dark:text-slate-200 selection:bg-indigo-100 selection:text-indigo-900">
       {/* Sidebar - Sleek Dark Professional */}
-      <aside className="w-full md:w-64 bg-[#0B0F19] text-white flex-shrink-0 flex flex-col border-r border-white/5 relative z-20">
+      <aside className="w-full md:w-64 bg-[#0B0F19] text-white flex-shrink-0 flex flex-col border-r border-white/5 relative z-20 md:h-screen md:sticky top-0">
         <div className="px-6 py-8 border-b border-white/5 flex flex-col items-center justify-center gap-3">
           <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/30">
             <ShieldAlert className="h-6 w-6 text-white" />
@@ -68,6 +88,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
         </nav>
 
         <div className="p-4 mt-auto border-t border-white/5">
+          <ThemeToggle />
           <div className="mb-4 px-2">
              <p className="text-sm font-semibold text-white truncate">{superAdmin.super_admin_name}</p>
              <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mt-0.5">Global Protocol</p>
@@ -86,11 +107,12 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
       </aside>
 
       {/* Main Content - Modern Clean Background */}
-      <main className="flex-1 overflow-auto bg-[#F4F7FE] relative">
+      <main className="flex-1 overflow-auto bg-[#F4F7FE] dark:bg-slate-950 relative transition-colors duration-200">
         <div className="max-w-[1600px] w-full mx-auto p-4 md:p-8 lg:p-10 relative z-10">
           {children}
         </div>
       </main>
-    </div>
+      </div>
+    </ThemeProvider>
   )
 }

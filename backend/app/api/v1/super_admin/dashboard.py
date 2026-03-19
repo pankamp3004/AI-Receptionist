@@ -5,6 +5,7 @@ from app.models.organization import Organization
 from app.models.memory import CallSession
 from app.models.patient import Patient
 from app.models.doctor import Doctor
+from app.models.call_cost import CallCost
 from pydantic import BaseModel
 
 from typing import List
@@ -17,6 +18,7 @@ class HospitalStat(BaseModel):
     patients: int
     doctors: int
     calls: int
+    total_cost: float
 
 class GlobalDashboardStats(BaseModel):
     total_organizations: int
@@ -53,12 +55,16 @@ async def get_hospital_stats(super_admin: CurrentSuperAdmin, db: DB):
         c_res = await db.execute(select(func.count()).select_from(CallSession).where(CallSession.organization_id == org.id))
         c_count = c_res.scalar() or 0
         
+        cost_res = await db.execute(select(func.sum(CallCost.total_cost_usd)).select_from(CallCost).where(CallCost.organization_id == org.id))
+        total_cost = cost_res.scalar() or 0.0
+        
         stats.append(HospitalStat(
             id=str(org.id), 
             name=org.name, 
             patients=p_count, 
             doctors=d_count,
-            calls=c_count
+            calls=c_count,
+            total_cost=float(total_cost)
         ))
         
     return stats

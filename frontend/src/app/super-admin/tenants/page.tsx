@@ -54,14 +54,14 @@ export default function TenantsPage() {
     <div>
       <Toaster />
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Tenant Management</h1>
-        <p className="text-gray-500 mt-1">Configure limits, AI models, and view all registered hospitals.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tenant Management</h1>
+        <p className="text-gray-500 dark:text-slate-400 mt-1">Configure limits, AI models, and view all registered hospitals.</p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800 overflow-hidden transition-colors">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-gray-500">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+          <table className="w-full text-left text-sm text-gray-500 dark:text-slate-400">
+            <thead className="text-xs text-gray-700 dark:text-slate-400 uppercase bg-gray-50 dark:bg-slate-800/50 border-b dark:border-slate-800 transition-colors">
               <tr>
                 <th className="px-6 py-4">Hospital Name</th>
                 <th className="px-6 py-4">Contact</th>
@@ -72,8 +72,8 @@ export default function TenantsPage() {
             </thead>
             <tbody>
               {tenants?.map((t: any) => (
-                <tr key={t.organization.id} className="bg-white border-b hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-900">
+                <tr key={t.organization.id} className="bg-white dark:bg-slate-900 border-b dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
                     {t.organization.name}
                     <span className="block text-xs text-gray-400 font-mono mt-1">{t.organization.id}</span>
                   </td>

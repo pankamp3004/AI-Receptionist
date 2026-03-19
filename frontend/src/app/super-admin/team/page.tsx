@@ -73,8 +73,8 @@ export default function TeamPage() {
       <Toaster />
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Platform Team Operations</h1>
-          <p className="text-gray-500 mt-1">Manage super administrators and global system operator profiles.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Platform Team Operations</h1>
+          <p className="text-gray-500 dark:text-slate-400 mt-1">Manage super administrators and global system operator profiles.</p>
         </div>
         <button 
           onClick={() => setShowAddModal(true)}
@@ -84,10 +84,10 @@ export default function TeamPage() {
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-gray-200 dark:border-slate-800 overflow-hidden transition-colors">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-gray-500">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+          <table className="w-full text-left text-sm text-gray-500 dark:text-slate-400">
+            <thead className="text-xs text-gray-700 dark:text-slate-400 uppercase bg-gray-50 dark:bg-slate-800/50 border-b dark:border-slate-800 transition-colors">
               <tr>
                 <th className="px-6 py-4">Operator Details</th>
                 <th className="px-6 py-4">Status</th>
@@ -97,14 +97,14 @@ export default function TeamPage() {
             </thead>
             <tbody>
               {team?.map((admin: any) => (
-                <tr key={admin.id} className="bg-white border-b hover:bg-gray-50">
+                <tr key={admin.id} className="bg-white dark:bg-slate-900 border-b dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 shrink-0 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold">
+                      <div className="h-10 w-10 shrink-0 bg-indigo-100 dark:bg-indigo-900/50 rounded-full flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold transition-colors">
                         {admin.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900 flex items-center gap-2">
+                        <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
                           {admin.name} 
                           {currentAdmin?.super_admin_id === admin.id && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">YOU</span>}
                         </div>

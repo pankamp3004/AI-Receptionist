@@ -22,6 +22,7 @@ interface HospitalStat {
   patients: number
   doctors: number
   calls: number
+  total_cost: number
 }
 
 const COLORS = ['#4f46e5', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6']
@@ -34,8 +35,8 @@ function StatBox({ title, value, icon: Icon, colorClass }: { title: string, valu
           <Icon className="h-6 w-6 text-white" />
         </div>
         <div>
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <p className="text-3xl font-bold text-gray-900">{value}</p>
+          <p className="text-sm font-medium text-gray-500 dark:text-slate-400">{title}</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
         </div>
       </CardContent>
     </Card>
@@ -58,8 +59,8 @@ export default function SuperDashboard() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Global Overview</h1>
-        <p className="text-gray-500 mt-1">System-wide metrics across all tenants.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Global Overview</h1>
+        <p className="text-gray-500 dark:text-slate-400 mt-1">System-wide metrics across all tenants.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -71,9 +72,9 @@ export default function SuperDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Patient Distribution Bar Chart */}
-        <Card className="shadow-sm border-gray-200">
-           <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-4">
-               <CardTitle className="text-gray-800 text-lg">Patient Volume by Hospital</CardTitle>
+        <Card className="shadow-sm border-gray-200 dark:border-slate-800 transition-colors">
+           <CardHeader className="border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/30 pb-4 transition-colors">
+               <CardTitle className="text-gray-800 dark:text-slate-100 text-lg">Patient Volume by Hospital</CardTitle>
            </CardHeader>
            <CardContent className="pt-6">
               <div className="h-[350px] w-full">
@@ -98,9 +99,9 @@ export default function SuperDashboard() {
         </Card>
 
         {/* Doctor Distribution Pie Chart */}
-        <Card className="shadow-sm border-gray-200">
-           <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-4">
-               <CardTitle className="text-gray-800 text-lg">Platform Doctor Distribution</CardTitle>
+        <Card className="shadow-sm border-gray-200 dark:border-slate-800 transition-colors">
+           <CardHeader className="border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/30 pb-4 transition-colors">
+               <CardTitle className="text-gray-800 dark:text-slate-100 text-lg">Platform Doctor Distribution</CardTitle>
            </CardHeader>
            <CardContent className="pt-6">
                <div className="h-[350px] w-full flex items-center justify-center">
@@ -138,11 +139,11 @@ export default function SuperDashboard() {
         </Card>
       </div>
 
-      <div className="mt-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
         {/* Call Volume Distribution Bar Chart */}
-        <Card className="shadow-sm border-gray-200">
-           <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-4">
-               <CardTitle className="text-gray-800 text-lg">Call Volume by Hospital</CardTitle>
+        <Card className="shadow-sm border-gray-200 dark:border-slate-800 transition-colors">
+           <CardHeader className="border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/30 pb-4 transition-colors">
+               <CardTitle className="text-gray-800 dark:text-slate-100 text-lg">Call Volume by Hospital</CardTitle>
            </CardHeader>
            <CardContent className="pt-6">
               <div className="h-[400px] w-full">
@@ -158,6 +159,34 @@ export default function SuperDashboard() {
                     <Bar dataKey="calls" name="Calls Processed" radius={[4, 4, 0, 0]} barSize={50}>
                       {hospitalStats?.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+           </CardContent>
+        </Card>
+
+        {/* Total Cost by Hospital Horizontal Bar Chart */}
+        <Card className="shadow-sm border-gray-200 dark:border-slate-800 transition-colors">
+           <CardHeader className="border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/30 pb-4 transition-colors">
+               <CardTitle className="text-gray-800 dark:text-slate-100 text-lg">Total Cost by Hospital (USD)</CardTitle>
+           </CardHeader>
+           <CardContent className="pt-6">
+              <div className="h-[400px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={hospitalStats} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
+                    <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} tickFormatter={(val) => `$${val}`} />
+                    <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} width={120} />
+                    <RechartsTooltip 
+                      cursor={{fill: '#F3F4F6', opacity: 0.1}}
+                      contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                      formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Total Cost']}
+                    />
+                    <Bar dataKey="total_cost" name="Total Cost" radius={[0, 4, 4, 0]} barSize={30}>
+                      {hospitalStats?.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[(index + 4) % COLORS.length]} />
                       ))}
                     </Bar>
                   </BarChart>
