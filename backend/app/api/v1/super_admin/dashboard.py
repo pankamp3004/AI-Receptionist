@@ -19,6 +19,7 @@ class HospitalStat(BaseModel):
     doctors: int
     calls: int
     total_cost: float
+    total_duration_seconds: int
 
 class GlobalDashboardStats(BaseModel):
     total_organizations: int
@@ -58,13 +59,17 @@ async def get_hospital_stats(super_admin: CurrentSuperAdmin, db: DB):
         cost_res = await db.execute(select(func.sum(CallCost.total_cost_usd)).select_from(CallCost).where(CallCost.organization_id == org.id))
         total_cost = cost_res.scalar() or 0.0
         
+        duration_res = await db.execute(select(func.sum(CallCost.duration_seconds)).select_from(CallCost).where(CallCost.organization_id == org.id))
+        total_duration = duration_res.scalar() or 0
+        
         stats.append(HospitalStat(
             id=str(org.id), 
             name=org.name, 
             patients=p_count, 
             doctors=d_count,
             calls=c_count,
-            total_cost=float(total_cost)
+            total_cost=float(total_cost),
+            total_duration_seconds=int(total_duration)
         ))
         
     return stats

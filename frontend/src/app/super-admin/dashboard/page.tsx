@@ -1,4 +1,5 @@
 'use client'
+import React, { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import superApi from '@/lib/super-api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -6,7 +7,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { Building2, Phone, Users, Stethoscope } from 'lucide-react'
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend 
+  Cell, ScatterChart, Scatter, ZAxis, Label, Legend
 } from 'recharts'
 
 interface GlobalStats {
@@ -23,6 +24,7 @@ interface HospitalStat {
   doctors: number
   calls: number
   total_cost: number
+  total_duration_seconds: number
 }
 
 const COLORS = ['#4f46e5', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6']
@@ -54,6 +56,15 @@ export default function SuperDashboard() {
     queryFn: async () => (await superApi.get('/api/v1/super-admin/dashboard/hospital-stats')).data,
   })
 
+  // Build a STABLE color map: same hospital always gets the same color across ALL charts
+  const hospitalColorMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    hospitalStats?.forEach((h, i) => {
+      map[h.id] = COLORS[i % COLORS.length]
+    })
+    return map
+  }, [hospitalStats])
+
   if (statsLoading || chartsLoading) return <LoadingSpinner />
 
   return (
@@ -80,16 +91,18 @@ export default function SuperDashboard() {
               <div className="h-[350px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={hospitalStats} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" className="dark:opacity-20" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
                     <RechartsTooltip 
-                      cursor={{fill: '#F3F4F6'}}
-                      contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                      cursor={{fill: 'rgba(156, 163, 175, 0.1)'}}
+                      contentStyle={{borderRadius: '8px', border: '1px solid rgba(226, 232, 240, 0.5)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                      itemStyle={{ color: '#475569' }}
+                      labelStyle={{ color: '#1E293B', fontWeight: 600 }}
                     />
                     <Bar dataKey="patients" name="Patients" radius={[4, 4, 0, 0]} barSize={40}>
                       {hospitalStats?.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={hospitalColorMap[entry.id] ?? COLORS[0]} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -98,38 +111,34 @@ export default function SuperDashboard() {
            </CardContent>
         </Card>
 
-        {/* Doctor Distribution Pie Chart */}
+        {/* Doctor Distribution Bar Chart */}
         <Card className="shadow-sm border-gray-200 dark:border-slate-800 transition-colors">
            <CardHeader className="border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/30 pb-4 transition-colors">
-               <CardTitle className="text-gray-800 dark:text-slate-100 text-lg">Platform Doctor Distribution</CardTitle>
+               <CardTitle className="text-gray-800 dark:text-slate-100 text-lg">Doctors by Hospital</CardTitle>
            </CardHeader>
            <CardContent className="pt-6">
-               <div className="h-[350px] w-full flex items-center justify-center">
+               <div className="h-[350px] w-full">
                  {hospitalStats?.some(h => h.doctors > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={hospitalStats}
-                        cx="50%"
-                        cy="45%"
-                        innerRadius={80}
-                        outerRadius={120}
-                        paddingAngle={2}
-                        dataKey="doctors"
-                        nameKey="name"
-                      >
-                        {hospitalStats?.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
+                    <BarChart data={hospitalStats} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" className="dark:opacity-20" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
+                      <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
                       <RechartsTooltip 
-                        contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                        cursor={{fill: 'rgba(156, 163, 175, 0.1)'}}
+                        contentStyle={{borderRadius: '8px', border: '1px solid rgba(226, 232, 240, 0.5)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                        itemStyle={{ color: '#475569' }}
+                        labelStyle={{ color: '#1E293B', fontWeight: 600 }}
                       />
-                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                    </PieChart>
+                      <Bar dataKey="doctors" name="Doctors" radius={[4, 4, 0, 0]} barSize={50}>
+                        {hospitalStats?.map((entry, index) => (
+                          <Cell key={`doc-cell-${index}`} fill={hospitalColorMap[entry.id] ?? COLORS[0]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                  ) : (
-                    <div className="text-gray-400 text-sm flex flex-col items-center">
+                    <div className="text-gray-400 text-sm flex flex-col items-center justify-center h-full">
                        <Stethoscope className="w-12 h-12 text-gray-200 mb-2" />
                        No doctors registered system-wide yet.
                     </div>
@@ -149,16 +158,51 @@ export default function SuperDashboard() {
               <div className="h-[400px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={hospitalStats} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" className="dark:opacity-20" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
                     <RechartsTooltip 
-                      cursor={{fill: '#F3F4F6'}}
-                      contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                      cursor={{fill: 'rgba(156, 163, 175, 0.1)'}}
+                      contentStyle={{borderRadius: '8px', border: '1px solid rgba(226, 232, 240, 0.5)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                      itemStyle={{ color: '#475569' }}
+                      labelStyle={{ color: '#1E293B', fontWeight: 600 }}
                     />
                     <Bar dataKey="calls" name="Calls Processed" radius={[4, 4, 0, 0]} barSize={50}>
                       {hospitalStats?.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={hospitalColorMap[entry.id] ?? COLORS[0]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+           </CardContent>
+        </Card>
+
+        {/* Total Duration by Hospital Bar Chart */}
+        <Card className="shadow-sm border-gray-200 dark:border-slate-800 transition-colors">
+           <CardHeader className="border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/30 pb-4 transition-colors">
+               <CardTitle className="text-gray-800 dark:text-slate-100 text-lg">Total Duration by Hospital</CardTitle>
+           </CardHeader>
+           <CardContent className="pt-6">
+              <div className="h-[400px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={hospitalStats?.map(h => ({ ...h, duration_minutes: Math.round((h.total_duration_seconds ?? 0) / 60) }))} 
+                    margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" className="dark:opacity-20" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
+                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} tickFormatter={(v) => `${v}m`} />
+                    <RechartsTooltip 
+                      cursor={{fill: 'rgba(156, 163, 175, 0.1)'}}
+                      contentStyle={{borderRadius: '8px', border: '1px solid rgba(226, 232, 240, 0.5)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                      itemStyle={{ color: '#475569' }}
+                      labelStyle={{ color: '#1E293B', fontWeight: 600 }}
+                      formatter={(value: any) => [`${value} min`, 'Total Duration']}
+                    />
+                    <Bar dataKey="duration_minutes" name="Total Duration" radius={[4, 4, 0, 0]} barSize={50} fillOpacity={0.8}>
+                      {hospitalStats?.map((entry, index) => (
+                        <Cell key={`dur-cell-${index}`} fill={hospitalColorMap[entry.id] ?? COLORS[0]} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -176,17 +220,19 @@ export default function SuperDashboard() {
               <div className="h-[400px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={hospitalStats} layout="vertical" margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" />
-                    <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} tickFormatter={(val) => `$${val}`} />
-                    <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#6B7280', fontSize: 12}} width={120} />
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E5E7EB" className="dark:opacity-20" />
+                    <XAxis type="number" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} tickFormatter={(val) => `$${val}`} />
+                    <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} width={120} />
                     <RechartsTooltip 
-                      cursor={{fill: '#F3F4F6', opacity: 0.1}}
-                      contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                      cursor={{fill: 'rgba(156, 163, 175, 0.1)', opacity: 0.1}}
+                      contentStyle={{borderRadius: '8px', border: '1px solid rgba(226, 232, 240, 0.5)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                      itemStyle={{ color: '#475569' }}
+                      labelStyle={{ color: '#1E293B', fontWeight: 600 }}
                       formatter={(value: any) => [`$${Number(value).toFixed(2)}`, 'Total Cost']}
                     />
                     <Bar dataKey="total_cost" name="Total Cost" radius={[0, 4, 4, 0]} barSize={30}>
                       {hospitalStats?.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[(index + 4) % COLORS.length]} />
+                        <Cell key={`cell-${index}`} fill={hospitalColorMap[entry.id] ?? COLORS[0]} />
                       ))}
                     </Bar>
                   </BarChart>
