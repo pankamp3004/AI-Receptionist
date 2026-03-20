@@ -19,7 +19,7 @@ export default function TenantsPage() {
   // State for active modal / edit forms
   const [editingConfig, setEditingConfig] = useState<any>(null)
   const [provider, setProvider] = useState('openai')
-  const [model, setModel] = useState('gpt-4o-mini')
+  const [model, setModel] = useState('gpt-4o')
   
   const [subsUpdate, setSubsUpdate] = useState<any>(null)
   
@@ -92,14 +92,14 @@ export default function TenantsPage() {
                       <Zap className="w-3 h-3 text-pink-500" />
                       {t.llm_provider?.toUpperCase() || 'OPENAI'}
                     </div>
-                    <div className="text-xs text-gray-500">{t.llm_model || 'gpt-4o-mini'}</div>
+                    <div className="text-xs text-gray-500">{t.llm_model || 'gpt-4o'}</div>
                   </td>
                   <td className="px-6 py-4 flex gap-3">
                     <button
                       onClick={() => {
                         setEditingConfig(t.organization.id)
                         setProvider(t.llm_provider || 'openai')
-                        setModel(t.llm_model || 'gpt-4o-mini')
+                        setModel(t.llm_model || 'gpt-4o')
                       }}
                       className="text-indigo-600 hover:underline flex items-center gap-1"
                     >

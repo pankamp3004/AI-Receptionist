@@ -253,7 +253,7 @@ async def entrypoint(ctx: JobContext):
     # even connects, completely masking DB round-trip latency.
     ai_config = {}
     org_details = {}
-    subscription = {"is_suspended": False, "max_agents": 10}  # safe defaults
+    subscription = {"is_suspended": False, "max_agents": 1}  # safe defaults
  
     if organization_id:
         logger.info(
@@ -336,7 +336,7 @@ async def entrypoint(ctx: JobContext):
             await ctx.room.disconnect()
             return
  
-        max_agents = subscription.get("max_agents", 10)
+        max_agents = subscription.get("max_agents", 1)
         current_active = ACTIVE_TENANT_SESSIONS[organization_id]
         if current_active >= max_agents:
             logger.warning(
@@ -377,12 +377,8 @@ async def entrypoint(ctx: JobContext):
     llm_provider = (ai_config.get("llm_provider") or "openai").lower()
     llm_model = ai_config.get("llm_model") or "gpt-4o"
  
-    # Force full gpt-4o. The mini model drops tool calls when using the user's preferred
-    # 'INSTANT ACKNOWLEDGMENTS' prompt constraint.
-    if llm_provider == "openai" and "mini" in llm_model:
-        llm_model = "gpt-4o"
-        logger.info("Upgraded openai model to gpt-4o to secure multi-turn tool calling behavior.")
  
+
     logger.info(f"Initializing LLM plugin: {llm_provider} using model: {llm_model}")
     llm_plugin = openai.LLM(model=llm_model)  # safe default
  

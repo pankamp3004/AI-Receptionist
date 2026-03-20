@@ -72,7 +72,7 @@ class MultiTenantHospitalService:
         if not self._pool:
             return {"specialty_mappings": {}, "symptom_mappings": {}}
         row = await self._pool.fetchrow(
-            "SELECT specialty_mappings, symptom_mappings FROM ai_configurations WHERE organization_id = $1",
+            "SELECT specialty_mappings, symptom_mappings, llm_provider, llm_model FROM ai_configurations WHERE organization_id = $1",
             organization_id,
         )
         if not row:
@@ -93,6 +93,8 @@ class MultiTenantHospitalService:
         return {
             "specialty_mappings": parse_json_col(row["specialty_mappings"]),
             "symptom_mappings": parse_json_col(row["symptom_mappings"]),
+            "llm_provider": row["llm_provider"],
+            "llm_model": row["llm_model"],
         }
 
     async def get_organization_details(self, organization_id: str) -> Optional[Dict]:
