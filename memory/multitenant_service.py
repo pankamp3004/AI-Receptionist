@@ -112,17 +112,35 @@ class MultiTenantHospitalService:
     async def get_tenant_subscription(self, organization_id: str) -> dict:
         """Returns suspension status and max_agents in a SINGLE query to minimize latency."""
         if not self._pool:
-            return {"is_suspended": False, "max_agents": 1}
+            return {"is_suspended": False, "max_agents": 1, "max_api_calls": 100}
         try:
             row = await self._pool.fetchrow(
-                "SELECT is_suspended, max_agents FROM tenant_subscriptions WHERE organization_id = $1", organization_id
+                "SELECT is_suspended, max_agents, max_api_calls FROM tenant_subscriptions WHERE organization_id = $1", organization_id
             )
             if not row:
-                return {"is_suspended": False, "max_agents": 1}
-            return {"is_suspended": bool(row["is_suspended"]), "max_agents": int(row["max_agents"] or 1)}
+                return {"is_suspended": False, "max_agents": 1, "max_api_calls": 100}
+            return {
+                "is_suspended": bool(row["is_suspended"]), 
+                "max_agents": int(row["max_agents"] or 1),
+                "max_api_calls": int(row["max_api_calls"] or 100)
+            }
         except Exception as e:
             logger.warning(f"get_tenant_subscription error: {e}")
-            return {"is_suspended": False, "max_agents": 1}
+            return {"is_suspended": False, "max_agents": 1, "max_api_calls": 100}
+
+    async def get_current_billing_calls(self, organization_id: str) -> int:
+        """Counts the number of call sessions for this org in the current day."""
+        if not self._pool:
+            return 0
+        try:
+            count = await self._pool.fetchval(
+                "SELECT COUNT(session_id) FROM call_session WHERE organization_id = $1::uuid AND date_trunc('day', started_at) = date_trunc('day', CURRENT_DATE)",
+                organization_id
+            )
+            return int(count or 0)
+        except Exception as e:
+            logger.warning(f"Error counting calls: {e}")
+            return 0
 
     async def check_tenant_suspension(self, organization_id: str) -> bool:
         sub = await self.get_tenant_subscription(organization_id)

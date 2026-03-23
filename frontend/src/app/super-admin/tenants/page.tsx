@@ -185,10 +185,14 @@ export default function TenantsPage() {
                       <option value="enterprise">Enterprise</option>
                     </select>
                   </div>
-                  <div className="grid grid-cols-1 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Max Agents</label>
                       <input type="number" value={subsUpdate.max_agents} onChange={(e) => setSubsUpdate({...subsUpdate, max_agents: parseInt(e.target.value)})} className="w-full border p-2 rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Max API Calls</label>
+                      <input type="number" value={subsUpdate.max_api_calls} onChange={(e) => setSubsUpdate({...subsUpdate, max_api_calls: parseInt(e.target.value)})} className="w-full border p-2 rounded-lg" />
                     </div>
                   </div>
                   <label className="flex items-center gap-2 mt-4 cursor-pointer">

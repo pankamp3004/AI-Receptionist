@@ -253,22 +253,25 @@ async def entrypoint(ctx: JobContext):
     # even connects, completely masking DB round-trip latency.
     ai_config = {}
     org_details = {}
-    subscription = {"is_suspended": False, "max_agents": 1}  # safe defaults
- 
+    subscription = {"is_suspended": False, "max_agents": 1, "max_api_calls": 100}  # safe defaults
+    current_calls = 0
+
     if organization_id:
         logger.info(
-            f"Pre-fetching tenant data (config + details + subscription) for {organization_id} "
+            f"Pre-fetching tenant data (config + details + subscription + usage) for {organization_id} "
             "while waiting for participant connection"
         )
         try:
-            ai_config, org_details_res, subscription_res = await asyncio.gather(
+            ai_config, org_details_res, subscription_res, current_calls_res = await asyncio.gather(
                 mt_service.get_ai_config(organization_id),
                 mt_service.get_organization_details(organization_id),
                 mt_service.get_tenant_subscription(organization_id),  # FIX: included here
+                mt_service.get_current_billing_calls(organization_id),
             )
             org_details = org_details_res or {}
             if subscription_res:
                 subscription = subscription_res
+            current_calls = current_calls_res or 0
         except Exception as e:
             logger.error(f"Failed pre-fetching tenant data: {e}")
  
@@ -293,15 +296,17 @@ async def entrypoint(ctx: JobContext):
                 organization_id = meta.get("organization_id")
                 if organization_id:
                     logger.info(f"Extracted org_id from participant metadata: {organization_id}")
-                    # Missed the prefetch window — fetch now (all three, concurrently)
-                    ai_config, org_details_res, subscription_res = await asyncio.gather(
+                    # Missed the prefetch window — fetch now (all concurrently)
+                    ai_config, org_details_res, subscription_res, current_calls_res = await asyncio.gather(
                         mt_service.get_ai_config(organization_id),
                         mt_service.get_organization_details(organization_id),
                         mt_service.get_tenant_subscription(organization_id),
+                        mt_service.get_current_billing_calls(organization_id),
                     )
                     org_details = org_details_res or {}
                     if subscription_res:
                         subscription = subscription_res
+                    current_calls = current_calls_res or 0
         except Exception as e:
             logger.error(f"Failed to parse participant metadata: {e}")
  
@@ -311,14 +316,16 @@ async def entrypoint(ctx: JobContext):
         organization_id = await mt_service.get_default_organization()
         if organization_id:
             logger.info(f"Using default organization: {organization_id}")
-            ai_config, org_details_res, subscription_res = await asyncio.gather(
+            ai_config, org_details_res, subscription_res, current_calls_res = await asyncio.gather(
                 mt_service.get_ai_config(organization_id),
                 mt_service.get_organization_details(organization_id),
                 mt_service.get_tenant_subscription(organization_id),
+                mt_service.get_current_billing_calls(organization_id),
             )
             org_details = org_details_res or {}
             if subscription_res:
                 subscription = subscription_res
+            current_calls = current_calls_res or 0
         else:
             logger.error("No default organization found in the database either!")
  
@@ -329,10 +336,16 @@ async def entrypoint(ctx: JobContext):
     logger.info(f"Final resolved organization_id for AI agent: {organization_id}")
  
     # 6. Suspend Check and Concurrency Bounds
-    # FIX: subscription data was already fetched above — no extra DB call here
+    # FIX: subscription data and usage counts were already fetched above — no extra DB call here
     if organization_id:
         if subscription.get("is_suspended"):
             logger.warning(f"Tenant {organization_id} is SUSPENDED. Instantly disconnecting room.")
+            await ctx.room.disconnect()
+            return
+            
+        max_api_calls = subscription.get("max_api_calls", 100)
+        if current_calls >= max_api_calls:
+            logger.warning(f"Tenant {organization_id} exceeded API call limit ({current_calls}/{max_api_calls}). Rejecting.")
             await ctx.room.disconnect()
             return
  
