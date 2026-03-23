@@ -39,7 +39,7 @@ CRITICAL CONSTRAINTS:
 2. INSTANT ACKNOWLEDGMENTS: Always acknowledge before calling any tool.
    - "Let me check that for you..." / "One moment please..." / "Looking that up..."
 3. PAST TIME PREVENTION: Never suggest time slots that have already passed today.
-4. WORKFLOWS:
+4. WORKFLOWS (IMPORTANT follow strictly):
    - Hospital rules/insurance/FAQs -> call search_knowledge_base
    - Symptom routing -> Use your own medical knowledge to identify the right specialty, then call get_available_specialties to confirm the exact specialty name offered at this hospital.
    - Doctor schedule -> call get_doctor_schedule
@@ -54,7 +54,7 @@ CRITICAL CONSTRAINTS:
 6. DATA COLLECTION RULE: When collecting patient info for booking, ALWAYS ask for details ONE BY ONE in a conversational manner. 
    Do NOT ask for Name, Mobile, Date of Birth, Gender, and Reason all at once! 
    Ask for the Name first, then wait for their reply. Then ask for Mobile, wait for reply, etc.
-7. FINAL CONFIRMATION: Once you have collected ALL required booking info (Name, Mobile, DOB, Gender, Reason), you MUST summarize the appointment details and explicitly ask the user "Should I go ahead and book this appointment?" Wait for their "Yes" before calling the book_appointment tool.
+7. FINAL CONFIRMATION: Once you have collected ALL required booking info (Name, Mobile, DOB, Gender, Reason), you MUST summarize the appointment with all details and explicitly ask the user "Should I go ahead and book this appointment?" Wait for their "Yes" before calling the book_appointment tool.
 8. After booking, say "A confirmation message will be sent to your registered mobile number shortly."
 """
 
@@ -124,6 +124,7 @@ CRITICAL CONSTRAINTS:
         self,
         ctx: RunContext,
     ) -> str:
+        ctx.disallow_interruptions()
         if not self._organization_id:
             return "I'm unable to look up specialties right now. Please call our direct line."
         
@@ -148,6 +149,7 @@ CRITICAL CONSTRAINTS:
         ctx: RunContext,
         specialty: Annotated[str, "Medical specialty"],
     ) -> str:
+        ctx.disallow_interruptions()
         if not self._organization_id:
             return "Unable to look up doctors right now."
         doctors = await self.db.get_doctors_by_specialty(self._organization_id, specialty)
@@ -162,6 +164,7 @@ CRITICAL CONSTRAINTS:
         ctx: RunContext,
         doctor_name: Annotated[str, "Name of the doctor"],
     ) -> str:
+        ctx.disallow_interruptions()
         if not self._organization_id:
             return "Unable to retrieve schedules right now."
         doc = await self.db.get_doctor_details(self._organization_id, doctor_name)
@@ -189,9 +192,10 @@ CRITICAL CONSTRAINTS:
         before_time: Annotated[Optional[str], "Filter slots before this time"] = None,
         after_time: Annotated[Optional[str], "Filter slots after this time"] = None,
     ) -> str:
+        ctx.disallow_interruptions()
+        ctx.session.say("Let me check the available slots for you.")
         if not self._organization_id:
             return "Unable to check availability right now."
-        ctx.disallow_interruptions()
         try:
             parsed_date = parser.parse(date_str, fuzzy=True, default=datetime.now())
             if parsed_date.date() < datetime.now().date():
@@ -277,9 +281,10 @@ CRITICAL CONSTRAINTS:
         dob: Annotated[str, "Patient date of birth (e.g. 1990-05-15 or spoken format)"],
         gender: Annotated[str, "Patient gender (Male, Female, or Other)"],
     ) -> str:
+        ctx.disallow_interruptions()
+        ctx.session.say("One moment while I confirm your booking.")
         if not self._organization_id:
             return "Unable to book appointments right now."
-        ctx.disallow_interruptions()
 
         if not patient_name or len(patient_name.strip()) < 2:
             return "I need your full name to make a booking."
@@ -328,6 +333,7 @@ CRITICAL CONSTRAINTS:
         ctx: RunContext,
         mobile_no: Annotated[str, "Patient mobile number"],
     ) -> str:
+        ctx.disallow_interruptions()
         if not self._organization_id:
             return "Unable to look up appointments right now."
         cleaned = "".join(filter(str.isdigit, mobile_no))
@@ -347,6 +353,7 @@ CRITICAL CONSTRAINTS:
         appointment_index: Annotated[int, "Appointment number from the list (1-based)"],
         mobile_no: Annotated[str, "Patient mobile number"],
     ) -> str:
+        ctx.disallow_interruptions()
         if not self._organization_id:
             return "Unable to cancel appointments right now."
         apps = await self.db.find_upcoming_appointments(self._organization_id, mobile_no)
@@ -363,6 +370,7 @@ CRITICAL CONSTRAINTS:
         ctx: RunContext,
         question: Annotated[str, "The specific question the caller is asking, formulated as a clear search query"],
     ) -> str:
+        ctx.disallow_interruptions()
         if not self._organization_id:
             return "The knowledge base is currently unavailable."
         

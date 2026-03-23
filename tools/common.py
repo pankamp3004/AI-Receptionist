@@ -61,6 +61,7 @@ async def update_user_info(
     Update the caller's persistent profile. 
     Call this as soon as the user reveals their name or an important preference.
     """
+    ctx.disallow_interruptions()
     # Get caller_id from the agent instance (BaseReceptionist stores it)
     caller_id = getattr(ctx.agent, 'caller_identity', None)
     if not caller_id:
