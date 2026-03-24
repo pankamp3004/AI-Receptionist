@@ -33,7 +33,10 @@ interface HospitalStat {
   total_duration_seconds: number
 }
 
+type ChartDatum = Record<string, string | number>
+
 const COLORS = ['#6D5EF8', '#FF4FA3', '#22C55E', '#F59E0B', '#3B82F6', '#9B5CF6', '#F97316', '#14B8A6']
+const DENSE_CHART_THRESHOLD = 12
 
 const tooltipStyle = {
   borderRadius: '18px',
@@ -57,6 +60,11 @@ const axisTickStyleStrong = {
 
 function formatMinutes(seconds: number) {
   return Math.round((seconds ?? 0) / 60)
+}
+
+function truncateLabel(value: string, maxLength = 18) {
+  if (value.length <= maxLength) return value
+  return `${value.slice(0, Math.max(0, maxLength - 3))}...`
 }
 
 function StatBox({
@@ -118,6 +126,109 @@ function ChartShell({
       </CardHeader>
       <CardContent className="p-6">{children}</CardContent>
     </Card>
+  )
+}
+
+function AdaptiveHospitalBarChart({
+  data,
+  metricKey,
+  metricLabel,
+  barSize,
+  height,
+  hospitalColorMap,
+  valueAxisFormatter,
+  tooltipValueFormatter,
+}: {
+  data: ChartDatum[]
+  metricKey: string
+  metricLabel: string
+  barSize: number
+  height: number
+  hospitalColorMap: Record<string, string>
+  valueAxisFormatter?: (value: number) => string
+  tooltipValueFormatter?: (value: number) => string
+}) {
+  const sortedData = [...data].sort((a, b) => Number(b[metricKey]) - Number(a[metricKey]))
+  const useDenseLayout = sortedData.length > DENSE_CHART_THRESHOLD
+  const dynamicHeight = useDenseLayout ? Math.max(360, sortedData.length * 42) : height
+  const chartData = useDenseLayout ? sortedData : data
+
+  return (
+    <div className="w-full rounded-[24px] bg-slate-50/55 p-3 ring-1 ring-slate-200/70 dark:bg-slate-950/35 dark:ring-white/10">
+      <div className={useDenseLayout ? 'overflow-y-auto pr-2' : ''} style={{ maxHeight: `${height}px` }}>
+        <div style={{ height: `${dynamicHeight}px`, minWidth: 0 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            {useDenseLayout ? (
+              <BarChart data={chartData} layout="vertical" margin={{ top: 8, right: 16, left: 28, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="var(--super-chart-grid)" />
+                <XAxis
+                  type="number"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={axisTickStyle}
+                  tickFormatter={(value: number) => (valueAxisFormatter ? valueAxisFormatter(value) : `${value}`)}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={axisTickStyleStrong}
+                  width={180}
+                  tickFormatter={(value: string) => truncateLabel(value, 22)}
+                />
+                <RechartsTooltip
+                  cursor={{ fill: 'rgba(99, 102, 241, 0.10)' }}
+                  contentStyle={tooltipStyle}
+                  itemStyle={{ color: '#CBD5E1' }}
+                  labelStyle={{ color: '#FFFFFF', fontWeight: 700 }}
+                  formatter={(value: number) => [tooltipValueFormatter ? tooltipValueFormatter(value) : value, metricLabel]}
+                />
+                <Bar dataKey={metricKey} name={metricLabel} radius={[0, 10, 10, 0]} barSize={26}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={`${metricKey}-${index}`} fill={hospitalColorMap[String(entry.id)] ?? COLORS[0]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            ) : (
+              <BarChart data={chartData} margin={{ top: 16, right: 16, left: -12, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--super-chart-grid)" />
+                <XAxis
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={axisTickStyleStrong}
+                  tickFormatter={(value: string) => truncateLabel(value, 14)}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={axisTickStyle}
+                  tickFormatter={valueAxisFormatter}
+                />
+                <RechartsTooltip
+                  cursor={{ fill: 'rgba(99, 102, 241, 0.10)' }}
+                  contentStyle={tooltipStyle}
+                  itemStyle={{ color: '#CBD5E1' }}
+                  labelStyle={{ color: '#FFFFFF', fontWeight: 700 }}
+                  formatter={(value: number) => [tooltipValueFormatter ? tooltipValueFormatter(value) : value, metricLabel]}
+                />
+                <Bar dataKey={metricKey} name={metricLabel} radius={[10, 10, 0, 0]} barSize={barSize}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={`${metricKey}-${index}`} fill={hospitalColorMap[String(entry.id)] ?? COLORS[0]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+      </div>
+      {useDenseLayout ? (
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          Ranked horizontal layout is used automatically for large hospital lists to keep labels readable.
+        </p>
+      ) : null}
+    </div>
   )
 }
 
@@ -225,130 +336,72 @@ export default function SuperDashboard() {
 
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
         <ChartShell title="Patient Volume by Hospital" subtitle="Compare registered patient load across every tenant.">
-          <div className="h-[360px] w-full rounded-[24px] bg-slate-50/55 p-3 ring-1 ring-slate-200/70 dark:bg-slate-950/35 dark:ring-white/10">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={hospitalStats} margin={{ top: 16, right: 16, left: -12, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--super-chart-grid)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={axisTickStyleStrong} />
-                <YAxis axisLine={false} tickLine={false} tick={axisTickStyle} />
-                <RechartsTooltip
-                  cursor={{ fill: 'rgba(99, 102, 241, 0.10)' }}
-                  contentStyle={tooltipStyle}
-                  itemStyle={{ color: '#CBD5E1' }}
-                  labelStyle={{ color: '#FFFFFF', fontWeight: 700 }}
-                />
-                <Bar dataKey="patients" name="Patients" radius={[10, 10, 0, 0]} barSize={42}>
-                  {hospitalStats?.map((entry, index) => (
-                    <Cell key={`patients-${index}`} fill={hospitalColorMap[entry.id] ?? COLORS[0]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <AdaptiveHospitalBarChart
+            data={hospitalStats ?? []}
+            metricKey="patients"
+            metricLabel="Patients"
+            barSize={42}
+            height={360}
+            hospitalColorMap={hospitalColorMap}
+          />
         </ChartShell>
 
         <ChartShell title="Doctors by Hospital" subtitle="Staffing strength distribution across the tenant network.">
-          <div className="h-[360px] w-full rounded-[24px] bg-slate-50/55 p-3 ring-1 ring-slate-200/70 dark:bg-slate-950/35 dark:ring-white/10">
-            {hospitalStats?.some((h) => h.doctors > 0) ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={hospitalStats} margin={{ top: 16, right: 16, left: -12, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--super-chart-grid)" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={axisTickStyleStrong} />
-                  <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={axisTickStyle} />
-                  <RechartsTooltip
-                    cursor={{ fill: 'rgba(99, 102, 241, 0.10)' }}
-                    contentStyle={tooltipStyle}
-                    itemStyle={{ color: '#CBD5E1' }}
-                    labelStyle={{ color: '#FFFFFF', fontWeight: 700 }}
-                  />
-                  <Bar dataKey="doctors" name="Doctors" radius={[10, 10, 0, 0]} barSize={42}>
-                    {hospitalStats?.map((entry, index) => (
-                      <Cell key={`doctors-${index}`} fill={hospitalColorMap[entry.id] ?? COLORS[0]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50/70 text-center dark:border-white/10 dark:bg-white/5">
-                <Stethoscope className="mb-3 h-12 w-12 text-slate-300 dark:text-slate-600" />
-                <p className="text-base font-semibold text-slate-700 dark:text-slate-200">No doctors registered yet</p>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Doctor metrics will appear here once data is available.</p>
-              </div>
-            )}
-          </div>
+          {hospitalStats?.some((h) => h.doctors > 0) ? (
+            <AdaptiveHospitalBarChart
+              data={hospitalStats ?? []}
+              metricKey="doctors"
+              metricLabel="Doctors"
+              barSize={42}
+              height={360}
+              hospitalColorMap={hospitalColorMap}
+            />
+          ) : (
+            <div className="flex h-[360px] flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50/70 text-center dark:border-white/10 dark:bg-white/5">
+              <Stethoscope className="mb-3 h-12 w-12 text-slate-300 dark:text-slate-600" />
+              <p className="text-base font-semibold text-slate-700 dark:text-slate-200">No doctors registered yet</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Doctor metrics will appear here once data is available.</p>
+            </div>
+          )}
         </ChartShell>
       </div>
 
       <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
         <ChartShell title="Call Volume by Hospital" subtitle="Call handling activity across the platform.">
-          <div className="h-[400px] w-full rounded-[24px] bg-slate-50/55 p-3 ring-1 ring-slate-200/70 dark:bg-slate-950/35 dark:ring-white/10">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={hospitalStats} margin={{ top: 16, right: 16, left: -12, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--super-chart-grid)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={axisTickStyleStrong} />
-                <YAxis axisLine={false} tickLine={false} tick={axisTickStyle} />
-                <RechartsTooltip
-                  cursor={{ fill: 'rgba(99, 102, 241, 0.10)' }}
-                  contentStyle={tooltipStyle}
-                  itemStyle={{ color: '#CBD5E1' }}
-                  labelStyle={{ color: '#FFFFFF', fontWeight: 700 }}
-                />
-                <Bar dataKey="calls" name="Calls Processed" radius={[10, 10, 0, 0]} barSize={44}>
-                  {hospitalStats?.map((entry, index) => (
-                    <Cell key={`calls-${index}`} fill={hospitalColorMap[entry.id] ?? COLORS[0]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <AdaptiveHospitalBarChart
+            data={hospitalStats ?? []}
+            metricKey="calls"
+            metricLabel="Calls Processed"
+            barSize={44}
+            height={400}
+            hospitalColorMap={hospitalColorMap}
+          />
         </ChartShell>
 
         <ChartShell title="Total Duration by Hospital" subtitle="Rounded call duration totals converted into minutes.">
-          <div className="h-[400px] w-full rounded-[24px] bg-slate-50/55 p-3 ring-1 ring-slate-200/70 dark:bg-slate-950/35 dark:ring-white/10">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={durationData} margin={{ top: 16, right: 16, left: -12, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="var(--super-chart-grid)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={axisTickStyleStrong} />
-                <YAxis axisLine={false} tickLine={false} tick={axisTickStyle} tickFormatter={(v) => `${v}m`} />
-                <RechartsTooltip
-                  cursor={{ fill: 'rgba(99, 102, 241, 0.10)' }}
-                  contentStyle={tooltipStyle}
-                  itemStyle={{ color: '#CBD5E1' }}
-                  labelStyle={{ color: '#FFFFFF', fontWeight: 700 }}
-                  formatter={(value: number) => [`${value} min`, 'Total Duration']}
-                />
-                <Bar dataKey="duration_minutes" name="Total Duration" radius={[10, 10, 0, 0]} barSize={44}>
-                  {durationData.map((entry, index) => (
-                    <Cell key={`duration-${index}`} fill={hospitalColorMap[entry.id] ?? COLORS[0]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <AdaptiveHospitalBarChart
+            data={durationData}
+            metricKey="duration_minutes"
+            metricLabel="Total Duration"
+            barSize={44}
+            height={400}
+            hospitalColorMap={hospitalColorMap}
+            valueAxisFormatter={(value) => `${value}m`}
+            tooltipValueFormatter={(value) => `${value} min`}
+          />
         </ChartShell>
 
         <ChartShell title="Total Cost by Hospital" subtitle="Platform cost distribution by tenant in USD.">
-          <div className="h-[400px] w-full rounded-[24px] bg-slate-50/55 p-3 ring-1 ring-slate-200/70 dark:bg-slate-950/35 dark:ring-white/10">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={hospitalStats} layout="vertical" margin={{ top: 12, right: 16, left: 20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="var(--super-chart-grid)" />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={axisTickStyle} tickFormatter={(val) => `$${val}`} />
-                <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={axisTickStyleStrong} width={132} />
-                <RechartsTooltip
-                  cursor={{ fill: 'rgba(99, 102, 241, 0.10)' }}
-                  contentStyle={tooltipStyle}
-                  itemStyle={{ color: '#CBD5E1' }}
-                  labelStyle={{ color: '#FFFFFF', fontWeight: 700 }}
-                  formatter={(value: number) => [`$${Number(value).toFixed(2)}`, 'Total Cost']}
-                />
-                <Bar dataKey="total_cost" name="Total Cost" radius={[0, 10, 10, 0]} barSize={26}>
-                  {hospitalStats?.map((entry, index) => (
-                    <Cell key={`cost-${index}`} fill={hospitalColorMap[entry.id] ?? COLORS[0]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <AdaptiveHospitalBarChart
+            data={hospitalStats ?? []}
+            metricKey="total_cost"
+            metricLabel="Total Cost"
+            barSize={26}
+            height={400}
+            hospitalColorMap={hospitalColorMap}
+            valueAxisFormatter={(value) => `$${value}`}
+            tooltipValueFormatter={(value) => `$${Number(value).toFixed(2)}`}
+          />
         </ChartShell>
       </div>
     </div>
