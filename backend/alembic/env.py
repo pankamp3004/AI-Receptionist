@@ -18,9 +18,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Use sync driver for alembic (replace asyncpg with psycopg2)
+# Use sync driver for alembic (replace asyncpg with psycopg2).
+# Escape '%' because Alembic stores this in a ConfigParser-backed object,
+# and percent-encoded passwords like '%40' otherwise trigger interpolation errors.
 sync_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
-config.set_main_option("sqlalchemy.url", sync_url)
+config.set_main_option("sqlalchemy.url", sync_url.replace("%", "%%"))
 
 target_metadata = Base.metadata
 
