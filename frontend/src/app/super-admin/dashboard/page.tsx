@@ -152,6 +152,14 @@ function AdaptiveHospitalBarChart({
   const useDenseLayout = sortedData.length > DENSE_CHART_THRESHOLD
   const dynamicHeight = useDenseLayout ? Math.max(360, sortedData.length * 42) : height
   const chartData = useDenseLayout ? sortedData : data
+  const formatTooltipValue = (value: string | number) => {
+    const normalized = typeof value === 'number' ? value : Number(value)
+    const displayValue =
+      tooltipValueFormatter && Number.isFinite(normalized)
+        ? tooltipValueFormatter(normalized)
+        : value
+    return [displayValue, metricLabel] as [string | number, string]
+  }
 
   return (
     <div className="w-full rounded-[24px] bg-slate-50/55 p-3 ring-1 ring-slate-200/70 dark:bg-slate-950/35 dark:ring-white/10">
@@ -182,7 +190,7 @@ function AdaptiveHospitalBarChart({
                   contentStyle={tooltipStyle}
                   itemStyle={{ color: '#CBD5E1' }}
                   labelStyle={{ color: '#FFFFFF', fontWeight: 700 }}
-                  formatter={(value: number) => [tooltipValueFormatter ? tooltipValueFormatter(value) : value, metricLabel]}
+                  formatter={formatTooltipValue}
                 />
                 <Bar dataKey={metricKey} name={metricLabel} radius={[0, 10, 10, 0]} barSize={26}>
                   {chartData.map((entry, index) => (
@@ -211,7 +219,7 @@ function AdaptiveHospitalBarChart({
                   contentStyle={tooltipStyle}
                   itemStyle={{ color: '#CBD5E1' }}
                   labelStyle={{ color: '#FFFFFF', fontWeight: 700 }}
-                  formatter={(value: number) => [tooltipValueFormatter ? tooltipValueFormatter(value) : value, metricLabel]}
+                  formatter={formatTooltipValue}
                 />
                 <Bar dataKey={metricKey} name={metricLabel} radius={[10, 10, 0, 0]} barSize={barSize}>
                   {chartData.map((entry, index) => (

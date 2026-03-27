@@ -19,9 +19,11 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Use sync driver for alembic (replace asyncpg with psycopg2).
-# Escape '%' because Alembic stores this in a ConfigParser-backed object,
+# Asyncpg expects `ssl=...`, while psycopg2 expects `sslmode=...`.
+# Also escape '%' because Alembic stores this in a ConfigParser-backed object,
 # and percent-encoded passwords like '%40' otherwise trigger interpolation errors.
 sync_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+sync_url = sync_url.replace("ssl=require", "sslmode=require")
 config.set_main_option("sqlalchemy.url", sync_url.replace("%", "%%"))
 
 target_metadata = Base.metadata
