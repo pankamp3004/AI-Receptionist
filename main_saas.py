@@ -329,10 +329,6 @@ async def entrypoint(ctx: JobContext):
         else:
             logger.error("No default organization found in the database either!")
  
-    with open("org_debug_dump.txt", "w") as f:
-        f.write(f"Organization ID Resolved: {organization_id}\n")
-        f.write(f"Participant Metadata: {participant.metadata}\n")
- 
     logger.info(f"Final resolved organization_id for AI agent: {organization_id}")
  
     # 6. Suspend Check and Concurrency Bounds
