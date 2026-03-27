@@ -44,4 +44,4 @@ async def setup_first_super_admin(data: SuperAdminCreate, db: DB):
     except Exception as exc:
         await db.rollback()
         logger.exception("Failed to create first super admin")
-        raise HTTPException(status_code=500, detail="Failed to create super admin") from exc
+        raise HTTPException(status_code=500, detail=f"Failed to create super admin: {type(exc).__name__}: {exc}") from exc
