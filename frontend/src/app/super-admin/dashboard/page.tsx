@@ -152,13 +152,15 @@ function AdaptiveHospitalBarChart({
   const useDenseLayout = sortedData.length > DENSE_CHART_THRESHOLD
   const dynamicHeight = useDenseLayout ? Math.max(360, sortedData.length * 42) : height
   const chartData = useDenseLayout ? sortedData : data
-  const formatTooltipValue = (value: string | number) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const formatTooltipValue = (value: any): [string | number, string] => {
+    if (value === undefined || value === null || Array.isArray(value)) return [String(value ?? ''), metricLabel]
     const normalized = typeof value === 'number' ? value : Number(value)
     const displayValue =
       tooltipValueFormatter && Number.isFinite(normalized)
         ? tooltipValueFormatter(normalized)
-        : value
-    return [displayValue, metricLabel] as [string | number, string]
+        : (value as string | number)
+    return [displayValue, metricLabel]
   }
 
   return (
