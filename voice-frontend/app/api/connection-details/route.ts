@@ -12,6 +12,7 @@ type ConnectionDetails = {
 const API_KEY = process.env.LIVEKIT_API_KEY;
 const API_SECRET = process.env.LIVEKIT_API_SECRET;
 const LIVEKIT_URL = process.env.LIVEKIT_URL;
+const LIVEKIT_AGENT_NAME = process.env.LIVEKIT_AGENT_NAME || process.env.NEXT_PUBLIC_AGENT_NAME;
 
 // Don't cache the results
 export const revalidate = 0;
@@ -32,9 +33,12 @@ export async function POST(req: Request) {
       throw new Error('LIVEKIT_API_SECRET is not defined');
     }
 
-    // Parse agent configuration from request body
+    // Parse agent configuration from request body.
+    // Prefer an explicit env fallback so production works even if the client
+    // does not send an agent name in room_config.
     const body = await req.json().catch(() => ({}));
-    const agentName: string | undefined = body?.room_config?.agents?.[0]?.agent_name;
+    const requestedAgentName: string | undefined = body?.room_config?.agents?.[0]?.agent_name;
+    const agentName = requestedAgentName || LIVEKIT_AGENT_NAME;
 
     // Generate participant token
     const participantName = phone ? `Caller ${phone.slice(-4)}` : 'user';
@@ -45,7 +49,23 @@ export async function POST(req: Request) {
       ? `org_${orgId}_${Math.floor(Math.random() * 10_000)}`
       : `voice_room_${Math.floor(Math.random() * 10_000)}`;
 
-    const metadata = orgId ? JSON.stringify({ organization_id: orgId, phone_number: phone }) : undefined;
+    const metadata = JSON.stringify({
+      organization_id: orgId ?? null,
+      phone_number: phone ?? null,
+    });
+
+    if (agentName) {
+      const dispatchClient = new AgentDispatchClient(
+        toHttpUrl(LIVEKIT_URL),
+        API_KEY,
+        API_SECRET,
+      );
+      await dispatchClient.createDispatch(roomName, agentName, { metadata });
+    } else {
+      console.warn(
+        'No agent name configured. Set LIVEKIT_AGENT_NAME or NEXT_PUBLIC_AGENT_NAME to enable explicit dispatch.',
+      );
+    }
 
     const participantToken = await createParticipantToken(
       { identity: participantIdentity, name: participantName, metadata },
@@ -99,4 +119,14 @@ function createParticipantToken(
   // The agent will be dispatched automatically if configured in LiveKit Cloud
 
   return at.toJwt();
+}
+
+function toHttpUrl(url: string): string {
+  if (url.startsWith('wss://')) {
+    return `https://${url.slice('wss://'.length)}`;
+  }
+  if (url.startsWith('ws://')) {
+    return `http://${url.slice('ws://'.length)}`;
+  }
+  return url;
 }
