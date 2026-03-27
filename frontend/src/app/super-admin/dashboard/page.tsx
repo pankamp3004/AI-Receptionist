@@ -24,6 +24,7 @@ interface GlobalStats {
 }
 
 interface HospitalStat {
+  [key: string]: string | number
   id: string
   name: string
   patients: number
