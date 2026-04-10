@@ -523,10 +523,12 @@ async def entrypoint(ctx: JobContext):
  
  
 if __name__ == "__main__":
+    agent_name = os.getenv("LIVEKIT_AGENT_NAME", "hospital-agent").strip()
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
             prewarm_fnc=prewarm,
+            agent_name=agent_name,
         ),
     )
 

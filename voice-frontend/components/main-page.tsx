@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { TokenSource } from 'livekit-client';
 import { useSession, SessionProvider, RoomAudioRenderer } from '@livekit/components-react';
 import { AnimatePresence } from 'motion/react';
@@ -24,16 +25,21 @@ interface ErrorState {
 }
 
 export function MainPage({ config, orgId, phone }: MainPageProps) {
+  const searchParams = useSearchParams();
+  // Prefer the browser URL so tenant context works even if the server shell was built without searchParams (e.g. CDN/static quirks).
+  const effectiveOrgId = searchParams.get('org_id') || orgId || undefined;
+  const effectivePhone = searchParams.get('phone') || phone || undefined;
+
   const tokenSource = useMemo(() => {
     const params = new URLSearchParams();
-    if (orgId) params.append('org_id', orgId);
-    if (phone) params.append('phone', phone);
-    
+    if (effectiveOrgId) params.append('org_id', effectiveOrgId);
+    if (effectivePhone) params.append('phone', effectivePhone);
+
     const queryString = params.toString();
     const endpoint = `/api/connection-details${queryString ? `?${queryString}` : ''}`;
-    
+
     return TokenSource.endpoint(endpoint);
-  }, [orgId, phone]);
+  }, [effectiveOrgId, effectivePhone]);
 
   const session = useSession(
     tokenSource,
