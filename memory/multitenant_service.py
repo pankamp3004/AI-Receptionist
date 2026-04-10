@@ -20,6 +20,18 @@ class MultiTenantHospitalService:
         self._pool: Optional[asyncpg.Pool] = None
         self._database_url = os.getenv("DATABASE_URL", "")
 
+    @staticmethod
+    def _normalize_url(url: str) -> str:
+        """Strip SQLAlchemy driver-hint prefix so asyncpg can parse the URL.
+
+        SQLAlchemy uses 'postgresql+asyncpg://' but asyncpg.create_pool()
+        only accepts 'postgresql://' or 'postgres://'.
+        """
+        for prefix in ("postgresql+asyncpg://", "postgres+asyncpg://"):
+            if url.startswith(prefix):
+                return "postgresql://" + url[len(prefix):]
+        return url
+
     async def initialize(self):
         if self._pool:
             return
@@ -28,7 +40,7 @@ class MultiTenantHospitalService:
             return
         try:
             self._pool = await asyncpg.create_pool(
-                self._database_url,
+                self._normalize_url(self._database_url),
                 min_size=2,
                 max_size=10,
                 statement_cache_size=0,

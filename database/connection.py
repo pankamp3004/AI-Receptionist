@@ -69,6 +69,18 @@ class DatabaseConnection:
             # Validate SSL is enabled
             self._validate_ssl_config()
     
+    @staticmethod
+    def _normalize_url(url: str) -> str:
+        """Strip SQLAlchemy driver-hint prefix so asyncpg can parse the URL.
+
+        SQLAlchemy uses 'postgresql+asyncpg://' but asyncpg.create_pool()
+        only accepts 'postgresql://' or 'postgres://'.
+        """
+        for prefix in ("postgresql+asyncpg://", "postgres+asyncpg://"):
+            if url.startswith(prefix):
+                return "postgresql://" + url[len(prefix):]
+        return url
+
     def _validate_ssl_config(self):
         """
         Validate that SSL/TLS is properly configured.
@@ -126,7 +138,7 @@ class DatabaseConnection:
                 # Create connection pool with optimized settings
                 # Note: statement_cache_size=0 is required for Supabase transaction pooler
                 self._pool = await asyncpg.create_pool(
-                    self.database_url,
+                    self._normalize_url(self.database_url),
                     min_size=10,              # Base connections (Requirement 2.7)
                     max_size=30,              # Max connections (10 + 20 overflow)
                     max_queries=50000,        # Max queries per connection before recycling
