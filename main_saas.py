@@ -201,17 +201,22 @@ async def _save_call_log_async(
  
 async def entrypoint(ctx: JobContext):
     """Multi-tenant entrypoint for the voice agent."""
- 
+
     def extract_caller_info(identity: str) -> tuple[str, str]:
         """Extract phone and sanitized identity."""
         if "_user_" in identity:
             return identity.split("_user_")[0], identity
         return identity, identity
- 
+
+    # Start DB pool init immediately as a background task so it warms up
+    # concurrently while metadata is parsed and ctx.connect() runs.
+    mt_service = get_multitenant_service()
+    _db_init_task = asyncio.create_task(mt_service.initialize())
+
     # 1. Determine organization from metadata or default
     organization_id: Optional[str] = None
     agent_type = os.getenv("AGENT_TYPE", "hospital")
- 
+
     if ctx.job and ctx.job.metadata:
         try:
             metadata = json.loads(ctx.job.metadata)
@@ -220,24 +225,16 @@ async def entrypoint(ctx: JobContext):
         except (json.JSONDecodeError, TypeError):
             pass
 
-    # #region agent log H-C H-E
-    import time as _time, pathlib as _pl
-    _dbg_meta = {"sessionId":"78444c","runId":"init","hypothesisId":"H-C","location":"main_saas.py:entrypoint","message":"job_metadata_parsed","data":{"has_metadata":bool(ctx.job and ctx.job.metadata),"organization_id":organization_id,"agent_type":agent_type},"timestamp":int(_time.time()*1000)}
-    try: _pl.Path("debug-78444c.log").open("a").write(json.dumps(_dbg_meta)+"\n")
-    except Exception: pass
-    logger.info(f"[DEBUG-78444c] job_metadata org_id={organization_id!r} has_metadata={bool(ctx.job and ctx.job.metadata)}")
-    # #endregion
     logger.info(f"Starting agent type: {agent_type}, org: {organization_id}")
- 
+
     session_logger = UniversalLogger(job_id=ctx.job.id, agent_type=agent_type)
     session_logger.log("SYSTEM", "Multi-tenant session starting")
- 
+
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
     logger.info(f"Connected to room: {ctx.room.name}")
- 
-    # 2. Initialize multi-tenant service
-    mt_service = get_multitenant_service()
-    await mt_service.initialize()
+
+    # 2. Ensure DB pool is ready before any org lookups
+    await _db_init_task
  
     # 3. If organization_id not set, try to resolve from room/phone metadata
     if not organization_id:
@@ -377,14 +374,6 @@ async def entrypoint(ctx: JobContext):
     cost_tracker = CallCostTracker()
     # Note: tracker.start() is called inside agent.on_enter() when the session begins
  
-    # #region agent log H-D H-E
-    import time as _time2, pathlib as _pl2
-    _org_name_val = (org_details or {}).get("name")
-    _dbg_agent = {"sessionId":"78444c","runId":"init","hypothesisId":"H-D-H-E","location":"main_saas.py:entrypoint","message":"about_to_create_agent","data":{"organization_id":organization_id,"org_details_keys":list((org_details or {}).keys()),"org_name":_org_name_val},"timestamp":int(_time2.time()*1000)}
-    try: _pl2.Path("debug-78444c.log").open("a").write(json.dumps(_dbg_agent)+"\n")
-    except Exception: pass
-    logger.info(f"[DEBUG-78444c] create_agent org_id={organization_id!r} org_name={_org_name_val!r} org_details_keys={list((org_details or {}).keys())}")
-    # #endregion
     # 9. Create multi-tenant agent
     agent = MultiTenantHospitalAgent(
         organization_id=organization_id,
