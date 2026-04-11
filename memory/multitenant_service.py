@@ -38,6 +38,17 @@ class MultiTenantHospitalService:
         if not self._database_url:
             logger.warning("No DATABASE_URL - multi-tenant features disabled")
             return
+        # #region agent log H-A H-B
+        import json as _json, time as _time
+        _raw_prefix = self._database_url[:40].split("@")[0] if self._database_url else ""
+        _normalized = self._normalize_url(self._database_url)
+        _norm_prefix = _normalized[:40].split("@")[0] if _normalized else ""
+        _dbg = {"sessionId":"78444c","runId":"init","hypothesisId":"H-A-H-B","location":"multitenant_service.py:initialize","message":"DB URL prefix before/after normalize","data":{"raw_prefix":_raw_prefix,"normalized_prefix":_norm_prefix},"timestamp":int(_time.time()*1000)}
+        try:
+            import pathlib; pathlib.Path("debug-78444c.log").open("a").write(_json.dumps(_dbg)+"\n")
+        except Exception: pass
+        logger.info(f"[DEBUG-78444c] DB_URL_PREFIX raw={_raw_prefix!r} normalized={_norm_prefix!r}")
+        # #endregion
         try:
             self._pool = await asyncpg.create_pool(
                 self._normalize_url(self._database_url),
@@ -45,8 +56,20 @@ class MultiTenantHospitalService:
                 max_size=10,
                 statement_cache_size=0,
             )
+            # #region agent log H-A H-B
+            _dbg2 = {"sessionId":"78444c","runId":"init","hypothesisId":"H-A-H-B","location":"multitenant_service.py:initialize","message":"pool_created_ok","data":{"pool_is_none":self._pool is None},"timestamp":int(_time.time()*1000)}
+            try: pathlib.Path("debug-78444c.log").open("a").write(_json.dumps(_dbg2)+"\n")
+            except Exception: pass
+            logger.info(f"[DEBUG-78444c] pool_created_ok pool_is_none={self._pool is None}")
+            # #endregion
             logger.info("MultiTenantHospitalService pool initialized")
         except Exception as e:
+            # #region agent log H-A H-B
+            _dbg3 = {"sessionId":"78444c","runId":"init","hypothesisId":"H-A-H-B","location":"multitenant_service.py:initialize","message":"pool_creation_FAILED","data":{"error":str(e)},"timestamp":int(_time.time()*1000)}
+            try: pathlib.Path("debug-78444c.log").open("a").write(_json.dumps(_dbg3)+"\n")
+            except Exception: pass
+            logger.error(f"[DEBUG-78444c] pool_creation_FAILED error={e}")
+            # #endregion
             logger.error(f"Failed to init pool: {e}")
 
     async def resolve_organization_by_phone(self, phone: str) -> Optional[str]:
@@ -110,14 +133,35 @@ class MultiTenantHospitalService:
         }
 
     async def get_organization_details(self, organization_id: str) -> Optional[Dict]:
+        # #region agent log H-C H-D
+        import json as _json, time as _time, pathlib as _pl
+        _dbg = {"sessionId":"78444c","runId":"init","hypothesisId":"H-C-H-D","location":"multitenant_service.py:get_organization_details","message":"called","data":{"org_id":organization_id,"pool_is_none":self._pool is None},"timestamp":int(_time.time()*1000)}
+        try: _pl.Path("debug-78444c.log").open("a").write(_json.dumps(_dbg)+"\n")
+        except Exception: pass
+        logger.info(f"[DEBUG-78444c] get_org_details org_id={organization_id!r} pool_is_none={self._pool is None}")
+        # #endregion
         if not self._pool:
             return None
         try:
             row = await self._pool.fetchrow(
                 "SELECT id, name, timezone FROM organizations WHERE id = $1", organization_id
             )
+            # #region agent log H-D
+            _result = dict(row) if row else None
+            _name = (_result or {}).get("name")
+            _dbg2 = {"sessionId":"78444c","runId":"init","hypothesisId":"H-D","location":"multitenant_service.py:get_organization_details","message":"query_result","data":{"row_found":row is not None,"name":_name},"timestamp":int(_time.time()*1000)}
+            try: _pl.Path("debug-78444c.log").open("a").write(_json.dumps(_dbg2)+"\n")
+            except Exception: pass
+            logger.info(f"[DEBUG-78444c] get_org_details result row_found={row is not None} name={_name!r}")
+            # #endregion
             return dict(row) if row else None
         except Exception as e:
+            # #region agent log H-D
+            _dbg3 = {"sessionId":"78444c","runId":"init","hypothesisId":"H-D","location":"multitenant_service.py:get_organization_details","message":"query_EXCEPTION","data":{"error":str(e)},"timestamp":int(_time.time()*1000)}
+            try: _pl.Path("debug-78444c.log").open("a").write(_json.dumps(_dbg3)+"\n")
+            except Exception: pass
+            logger.warning(f"[DEBUG-78444c] get_org_details EXCEPTION error={e}")
+            # #endregion
             logger.warning(f"get_organization_details error: {e}")
             return None
 
